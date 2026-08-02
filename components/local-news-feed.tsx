@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { LocalNewsFeed, NewsMediaType } from "@/lib/news/local-news";
 
@@ -7,6 +8,7 @@ type NewsFilter = "all" | NewsMediaType;
 
 interface LocalNewsFeedProps {
   feed: LocalNewsFeed;
+  compact?: boolean;
 }
 
 const FILTERS: Array<{ id: NewsFilter; label: string }> = [
@@ -27,8 +29,7 @@ const OFFICIAL_FACEBOOK_TIMELINES = [
     id: "pc-monterrey-facebook",
     name: "Protección Civil Monterrey",
     pageUrl: "https://www.facebook.com/761222200588751/",
-    sourceUrl:
-      "https://www.monterrey.gob.mx/dependencias/protecci%C3%B3n-civil/",
+    sourceUrl: "https://www.monterrey.gob.mx/dependencias/protecci%C3%B3n-civil/",
   },
 ] as const;
 
@@ -53,60 +54,66 @@ function mediaLabel(mediaType: NewsMediaType): string {
   return "Aviso oficial";
 }
 
-export function LocalNewsFeed({ feed }: LocalNewsFeedProps) {
+export function LocalNewsFeed({ feed, compact = false }: LocalNewsFeedProps) {
   const [filter, setFilter] = useState<NewsFilter>("all");
 
   const visibleItems = useMemo(() => {
-    if (filter === "all") return feed.items;
-    return feed.items.filter((item) => item.mediaType === filter);
-  }, [feed.items, filter]);
-
-  const showFacebookTimelines = filter === "all" || filter === "facebook";
+    const filtered =
+      filter === "all"
+        ? feed.items
+        : feed.items.filter((item) => item.mediaType === filter);
+    return compact ? filtered.slice(0, 3) : filtered.slice(0, 18);
+  }, [compact, feed.items, filter]);
 
   return (
-    <section className="news-panel" aria-labelledby="metropolitan-news-title">
+    <section
+      className={compact ? "news-panel news-panel-compact" : "news-panel news-panel-full"}
+      aria-labelledby="metropolitan-news-title"
+      id="avisos"
+    >
       <div className="news-panel-header">
         <div>
           <span className="eyebrow">Protección Civil metropolitana</span>
-          <h2 id="metropolitan-news-title">Avisos e incidentes recientes</h2>
+          <h2 id="metropolitan-news-title">
+            {compact ? "Incidentes oficiales recientes" : "Avisos e incidentes oficiales"}
+          </h2>
           <p>
-            Solo emergencias, clima severo, incendios, rescates, cierres peligrosos
-            y fallas de infraestructura. Los timelines se cargan directamente desde
-            las páginas oficiales para no depender de un raspador bloqueado por Meta.
+            Emergencias, clima severo, incendios, rescates, cierres peligrosos y fallas
+            de infraestructura. Sin política, espectáculos ni relleno editorial.
           </p>
         </div>
         <div className="news-feed-status">
-          <span className="news-mode news-mode-live">Canales oficiales conectados</span>
+          <span className={`news-mode news-mode-${feed.mode}`}>
+            {feed.mode === "unavailable"
+              ? "Sin incidentes confirmados"
+              : `${feed.items.length} publicaciones verificadas`}
+          </span>
           <small>Actualizado {feed.updatedAt}</small>
+          {compact ? <Link href="/avisos">Ver todos los avisos →</Link> : null}
         </div>
       </div>
 
-      <div className="news-filters" role="group" aria-label="Filtrar avisos oficiales">
-        {FILTERS.map((option) => (
-          <button
-            key={option.id}
-            type="button"
-            className={filter === option.id ? "news-filter is-active" : "news-filter"}
-            onClick={() => setFilter(option.id)}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
+      {!compact ? (
+        <div className="news-filters" role="group" aria-label="Filtrar avisos oficiales">
+          {FILTERS.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              className={filter === option.id ? "news-filter is-active" : "news-filter"}
+              onClick={() => setFilter(option.id)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       {visibleItems.length > 0 ? (
-        <div className="news-grid">
-          {visibleItems.slice(0, 12).map((item, index) => (
-            <article
-              key={item.id}
-              className={
-                index === 0 && filter === "all"
-                  ? "news-card news-card-featured"
-                  : "news-card"
-              }
-            >
+        <div className={compact ? "incident-preview-grid" : "news-grid"}>
+          {visibleItems.map((item) => (
+            <article className={compact ? "incident-preview-card" : "news-card"} key={item.id}>
               <a
-                className="news-card-media"
+                className={compact ? "incident-preview-media" : "news-card-media"}
                 href={item.url}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -115,19 +122,10 @@ export function LocalNewsFeed({ feed }: LocalNewsFeedProps) {
                 {item.imageUrl ? (
                   // Las portadas provienen de fuentes oficiales variables.
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={item.imageUrl}
-                    alt=""
-                    loading="lazy"
-                    referrerPolicy="no-referrer"
-                  />
+                  <img src={item.imageUrl} alt="" loading="lazy" referrerPolicy="no-referrer" />
                 ) : (
                   <span className="news-card-placeholder" aria-hidden="true">
-                    {item.mediaType === "tiktok"
-                      ? "♪"
-                      : item.mediaType === "facebook"
-                        ? "f"
-                        : "!"}
+                    {item.mediaType === "tiktok" ? "♪" : item.mediaType === "facebook" ? "f" : "!"}
                   </span>
                 )}
                 <span className={`news-media-label news-media-${item.mediaType}`}>
@@ -135,9 +133,8 @@ export function LocalNewsFeed({ feed }: LocalNewsFeedProps) {
                 </span>
               </a>
 
-              <div className="news-card-body">
+              <div className={compact ? "incident-preview-body" : "news-card-body"}>
                 <div className="news-card-meta">
-                  <span>{item.sourceName}</span>
                   <span>{item.category}</span>
                   {item.publishedLabel ? <time>{item.publishedLabel}</time> : null}
                 </div>
@@ -146,73 +143,74 @@ export function LocalNewsFeed({ feed }: LocalNewsFeedProps) {
                     {item.title}
                   </a>
                 </h3>
-                <div className="news-card-actions">
+                <div className="incident-source-row">
+                  <span>{item.sourceName}</span>
                   <a href={item.url} target="_blank" rel="noopener noreferrer">
-                    Abrir publicación
-                  </a>
-                  <a
-                    href={item.sourceSocialUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {item.sourceSocialLabel} oficial
+                    Ver publicación
                   </a>
                 </div>
               </div>
             </article>
           ))}
         </div>
-      ) : filter !== "all" && !showFacebookTimelines ? (
-        <div className="news-empty-state">
-          <strong>No hay publicaciones verificadas para este filtro.</strong>
-          <span>
-            TikTok solo aparece cuando existe una URL real de una cuenta oficial y
-            un operador la valida. Las cuentas supuestas que probamos devolvieron error;
-            no se inventará un perfil para llenar espacio.
-          </span>
+      ) : (
+        <div className={compact ? "news-empty-state news-empty-compact" : "news-empty-state"}>
+          <span className="empty-check" aria-hidden="true">✓</span>
+          <div>
+            <strong>No hay incidentes oficiales recientes para este filtro.</strong>
+            <span>Última revisión: {feed.updatedAt}. No se muestran notas antiguas para rellenar espacio.</span>
+          </div>
         </div>
-      ) : null}
+      )}
 
-      {showFacebookTimelines ? (
-        <div className="official-social-grid" aria-label="Timelines oficiales de Facebook">
-          {OFFICIAL_FACEBOOK_TIMELINES.map((timeline) => (
-            <article className="official-social-card" key={timeline.id}>
-              <div className="official-social-header">
-                <div>
-                  <span className="source-dot is-online" />
-                  <strong>{timeline.name}</strong>
-                </div>
-                <span>Facebook oficial</span>
-              </div>
-              <iframe
-                className="official-facebook-frame"
-                src={facebookPluginUrl(timeline.pageUrl)}
-                title={`Publicaciones recientes de ${timeline.name}`}
-                width="500"
-                height="650"
-                loading="lazy"
-                allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
-              />
-              <div className="official-social-links">
-                <a href={timeline.pageUrl} target="_blank" rel="noopener noreferrer">
-                  Abrir Facebook
-                </a>
-                <a href={timeline.sourceUrl} target="_blank" rel="noopener noreferrer">
-                  Portal oficial
-                </a>
-              </div>
-            </article>
-          ))}
-        </div>
-      ) : null}
+      {!compact ? (
+        <>
+          <details className="official-channel-details">
+            <summary>Ver canales oficiales completos de Facebook</summary>
+            <p>
+              Los timelines provienen directamente de Meta y pueden solicitar inicio de sesión.
+            </p>
+            <div className="official-social-grid" aria-label="Timelines oficiales de Facebook">
+              {OFFICIAL_FACEBOOK_TIMELINES.map((timeline) => (
+                <article className="official-social-card" key={timeline.id}>
+                  <div className="official-social-header">
+                    <div>
+                      <span className="source-dot is-online" />
+                      <strong>{timeline.name}</strong>
+                    </div>
+                    <span>Facebook oficial</span>
+                  </div>
+                  <iframe
+                    className="official-facebook-frame"
+                    src={facebookPluginUrl(timeline.pageUrl)}
+                    title={`Publicaciones recientes de ${timeline.name}`}
+                    width="500"
+                    height="650"
+                    loading="lazy"
+                    allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+                  />
+                  <div className="official-social-links">
+                    <a href={timeline.pageUrl} target="_blank" rel="noopener noreferrer">
+                      Abrir Facebook
+                    </a>
+                    <a href={timeline.sourceUrl} target="_blank" rel="noopener noreferrer">
+                      Portal oficial
+                    </a>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </details>
 
-      <div className="news-verification-note">
-        <strong>Verificación aplicada</strong>
-        <span>
-          Ambos timelines respondieron correctamente desde un servidor externo antes
-          de habilitarse. Facebook puede pedir iniciar sesión según sus propias reglas.
-        </span>
-      </div>
+          <div className="news-verification-note">
+            <strong>Fuentes verificadas</strong>
+            <span>
+              El contenido social no se convierte automáticamente en una orden de evacuación.
+              Las alertas operativas conservan su propia fuente, vigencia y nivel de confianza.
+            </span>
+          </div>
+        </>
+      ) : null}
     </section>
   );
 }
