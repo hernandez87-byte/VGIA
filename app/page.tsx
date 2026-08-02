@@ -28,9 +28,8 @@ export default async function Home() {
           </span>
         </div>
         <nav className="topbar-actions" aria-label="Acciones principales">
-          <span className="topbar-button" aria-label="Estado de conexión">
-            {dashboard.source === "supabase" ? "Supabase activo" : "Sin conexión"}
-          </span>
+          <Link className="topbar-button" href="/reportar">Reportar</Link>
+          <Link className="topbar-button" href="/familia">Mi familia</Link>
           <Link className="profile-button profile-link" href="/login" aria-label="Iniciar sesión">
             EH
           </Link>
@@ -91,7 +90,7 @@ export default async function Home() {
               <strong>{roadClosures.length}</strong> cierres
             </span>
           </div>
-          <Link className="secondary-button link-button" href="/login">
+          <Link className="secondary-button link-button" href="/familia">
             Configurar familia
           </Link>
         </section>
