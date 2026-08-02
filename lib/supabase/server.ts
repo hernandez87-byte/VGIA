@@ -1,21 +1,14 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { getPublicSupabaseConfig } from "@/lib/supabase/config";
 
 export function hasSupabaseServerConfig(): boolean {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
-  );
+  const { url, publishableKey } = getPublicSupabaseConfig();
+  return Boolean(url && publishableKey);
 }
 
 export async function createClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-  if (!url || !publishableKey) {
-    throw new Error("Supabase no está configurado en el servidor.");
-  }
-
+  const { url, publishableKey } = getPublicSupabaseConfig();
   const cookieStore = await cookies();
 
   return createServerClient(url, publishableKey, {
