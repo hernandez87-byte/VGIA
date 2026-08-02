@@ -15,6 +15,7 @@ VIGÍA es una plataforma de prevención, respuesta y recuperación ante emergenc
 - MapLibre para visualizar geometrías y recursos.
 - PWA con caché conservador de la carcasa pública.
 - GitHub Actions para lint, tipos y build.
+- `pg_net` restringido para futuros conectores y trabajos HTTP de servidor.
 
 ## Funciones disponibles
 
@@ -23,6 +24,9 @@ VIGÍA es una plataforma de prevención, respuesta y recuperación ante emergenc
 - Búsqueda geoespacial de recursos cercanos.
 - Inicio de sesión y registro por correo.
 - Actualización automática mediante Realtime.
+- Reportes ciudadanos geolocalizados con estado inicial no verificado.
+- Creación de grupos familiares y confirmaciones de seguridad por 24 horas.
+- Panel restringido para publicar alertas operativas o simulaciones.
 - Endpoint de salud con comprobación real de base de datos.
 - Fallback local que nunca se presenta como información oficial.
 
@@ -44,7 +48,7 @@ NEXT_PUBLIC_DEFAULT_LATITUDE=25.6866
 NEXT_PUBLIC_DEFAULT_LONGITUDE=-100.3161
 ```
 
-No coloques una clave `service_role` o secreta en variables `NEXT_PUBLIC_*`.
+El repositorio incluye como respaldo la URL y la clave publicable del proyecto de desarrollo. La clave publicable es visible por diseño y su alcance está limitado por RLS. Nunca coloques una clave `service_role` o secreta en variables `NEXT_PUBLIC_*` ni en el repositorio.
 
 ## Base de datos
 
@@ -57,6 +61,16 @@ supabase db reset --linked
 ```
 
 `db reset --linked` destruye datos; úsalo únicamente en un proyecto de desarrollo. La vida ya trae suficientes accidentes sin añadir uno manualmente.
+
+## Rutas de aplicación
+
+```text
+/             Tablero público
+/login        Registro e inicio de sesión
+/reportar     Reporte ciudadano geolocalizado
+/familia      Grupos y confirmaciones de seguridad
+/operador     Publicación restringida de alertas
+```
 
 ## API
 
@@ -124,6 +138,7 @@ docs/                        Producto y arquitectura
 - No publicar recursos privados o infraestructura sensible.
 - No calcular rutas “seguras” sin cierres, riesgo por segmento y datos vigentes.
 - No guardar sesión, API ni datos personalizados en el service worker.
+- No conceder RPC de escritura a usuarios anónimos.
 
 ## Límites actuales
 
@@ -131,4 +146,5 @@ docs/                        Producto y arquitectura
 - Todavía no hay navegación vial ni motor de evacuación.
 - No existen conectores oficiales con Protección Civil, CONAGUA, SSN o SMN.
 - El modo sin conexión guarda la interfaz pública, no garantiza datos operativos recientes.
-- La información familiar todavía requiere completar sus pantallas de administración.
+- Los grupos familiares todavía no incluyen invitaciones por correo o teléfono.
+- El proyecto aún no está desplegado en Vercel.
