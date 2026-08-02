@@ -5,6 +5,7 @@ import "./integrations.css";
 import "./map.css";
 import "./workflows.css";
 import "./news.css";
+import "./news-official.css";
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
 
 export const metadata: Metadata = {
