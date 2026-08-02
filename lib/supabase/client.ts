@@ -1,19 +1,12 @@
 import { createBrowserClient } from "@supabase/ssr";
+import { getPublicSupabaseConfig } from "@/lib/supabase/config";
 
 export function hasSupabaseBrowserConfig(): boolean {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
-  );
+  const { url, publishableKey } = getPublicSupabaseConfig();
+  return Boolean(url && publishableKey);
 }
 
 export function createClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-  if (!url || !publishableKey) {
-    throw new Error("Supabase no está configurado en el navegador.");
-  }
-
+  const { url, publishableKey } = getPublicSupabaseConfig();
   return createBrowserClient(url, publishableKey);
 }
