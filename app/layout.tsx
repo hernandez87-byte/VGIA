@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./globals.css";
 import "./integrations.css";
+import "./map.css";
 import "./workflows.css";
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
 
