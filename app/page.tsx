@@ -4,15 +4,20 @@ import { DecisionCard } from "@/components/decision-card";
 import { EventSelector } from "@/components/event-selector";
 import { FamilyStatus } from "@/components/family-status";
 import { LiveRefresh } from "@/components/live-refresh";
+import { LocalNewsFeed } from "@/components/local-news-feed";
 import { ResourceList } from "@/components/resource-list";
 import { RiskMap } from "@/components/risk-map";
 import { getDashboardData } from "@/lib/data/dashboard";
 import { familyStatuses } from "@/lib/mock-data";
+import { getLocalNewsFeed } from "@/lib/news/local-news";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const dashboard = await getDashboardData();
+  const [dashboard, localNews] = await Promise.all([
+    getDashboardData(),
+    getLocalNewsFeed(),
+  ]);
   const { event, resources, hazardZones, roadClosures } = dashboard;
 
   return (
@@ -65,6 +70,8 @@ export default async function Home() {
         </section>
 
         <EventSelector />
+
+        <LocalNewsFeed feed={localNews} />
 
         <section className="operations-grid">
           <ResourceList resources={resources} />
