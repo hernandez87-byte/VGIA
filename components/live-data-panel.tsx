@@ -1,3 +1,4 @@
+import styles from "@/components/live-data-panel.module.css";
 import type { LiveSnapshot } from "@/lib/data-sources/types";
 
 const severityLabel = {
@@ -24,7 +25,7 @@ function formatDate(value: string) {
 
 export function LiveDataPanel({ snapshot }: { snapshot: LiveSnapshot }) {
   return (
-    <section className="panel-card live-data-panel">
+    <section className={`panel-card ${styles.panel}`}>
       <div className="section-heading">
         <div>
           <span className="eyebrow">Conexiones reales</span>
@@ -33,9 +34,9 @@ export function LiveDataPanel({ snapshot }: { snapshot: LiveSnapshot }) {
         <span className="freshness">Actualizado {formatDate(snapshot.generatedAt)}</span>
       </div>
 
-      <div className="live-source-grid">
+      <div className={styles.sourceGrid}>
         {snapshot.sources.map((source) => (
-          <article className="live-source-card" key={source.id}>
+          <article className={styles.sourceCard} key={source.id}>
             <div className="resource-title-row">
               <strong>{source.label}</strong>
               <span className={`status-chip ${source.status === "online" ? "status-success" : "status-warning"}`}>
@@ -48,12 +49,12 @@ export function LiveDataPanel({ snapshot }: { snapshot: LiveSnapshot }) {
         ))}
       </div>
 
-      <div className="live-data-columns">
+      <div className={styles.columns}>
         <div>
           <h3>Eventos recientes</h3>
-          <div className="live-feed-list">
+          <div className={styles.feedList}>
             {snapshot.hazards.slice(0, 6).map((hazard) => (
-              <article className="live-feed-item" key={hazard.id}>
+              <article className={styles.feedItem} key={hazard.id}>
                 <div className="resource-title-row">
                   <strong>{hazard.title}</strong>
                   <span className="status-chip status-neutral">
@@ -65,16 +66,16 @@ export function LiveDataPanel({ snapshot }: { snapshot: LiveSnapshot }) {
               </article>
             ))}
             {snapshot.hazards.length === 0 ? (
-              <p className="empty-state">Ninguna fuente de eventos respondió.</p>
+              <p className={styles.emptyState}>Ninguna fuente de eventos respondió.</p>
             ) : null}
           </div>
         </div>
 
         <div>
           <h3>Recursos cartografiados en Monterrey</h3>
-          <div className="live-feed-list">
+          <div className={styles.feedList}>
             {snapshot.resources.slice(0, 6).map((resource) => (
-              <article className="live-feed-item" key={resource.id}>
+              <article className={styles.feedItem} key={resource.id}>
                 <div className="resource-title-row">
                   <strong>{resource.name}</strong>
                   <span className="status-chip status-warning">Sin verificar</span>
@@ -86,13 +87,13 @@ export function LiveDataPanel({ snapshot }: { snapshot: LiveSnapshot }) {
               </article>
             ))}
             {snapshot.resources.length === 0 ? (
-              <p className="empty-state">La fuente comunitaria de recursos no respondió.</p>
+              <p className={styles.emptyState}>La fuente comunitaria de recursos no respondió.</p>
             ) : null}
           </div>
         </div>
       </div>
 
-      <p className="live-disclaimer">
+      <p className={styles.disclaimer}>
         Los eventos provienen de fuentes oficiales o científicas. Los recursos de OpenStreetMap son ubicaciones comunitarias y no confirman apertura, inventario, acceso ni seguridad.
       </p>
     </section>
