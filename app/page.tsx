@@ -9,14 +9,14 @@ import { ResourceList } from "@/components/resource-list";
 import { RiskMap } from "@/components/risk-map";
 import { getDashboardData } from "@/lib/data/dashboard";
 import { familyStatuses } from "@/lib/mock-data";
-import { getLocalNewsFeed } from "@/lib/news/local-news";
+import { getVerifiedOfficialFeed } from "@/lib/news/verified-official-feed";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const [dashboard, localNews] = await Promise.all([
     getDashboardData(),
-    getLocalNewsFeed(),
+    getVerifiedOfficialFeed(),
   ]);
   const { event, resources, hazardZones, roadClosures } = dashboard;
 
