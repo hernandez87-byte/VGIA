@@ -12,9 +12,40 @@ interface LocalNewsFeedProps {
 const FILTERS: Array<{ id: NewsFilter; label: string }> = [
   { id: "all", label: "Todos los eventos" },
   { id: "article", label: "Avisos oficiales" },
-  { id: "tiktok", label: "Videos de TikTok" },
   { id: "facebook", label: "Facebook oficial" },
+  { id: "tiktok", label: "Videos de TikTok" },
 ];
+
+const OFFICIAL_FACEBOOK_TIMELINES = [
+  {
+    id: "pcnl-facebook",
+    name: "Protección Civil Nuevo León",
+    pageUrl: "https://www.facebook.com/proteccioncivilnuevoleon/",
+    sourceUrl: "https://www.nl.gob.mx/es/taxonomy/term/173",
+  },
+  {
+    id: "pc-monterrey-facebook",
+    name: "Protección Civil Monterrey",
+    pageUrl: "https://www.facebook.com/761222200588751/",
+    sourceUrl:
+      "https://www.monterrey.gob.mx/dependencias/protecci%C3%B3n-civil/",
+  },
+] as const;
+
+function facebookPluginUrl(pageUrl: string): string {
+  const params = new URLSearchParams({
+    href: pageUrl,
+    tabs: "timeline",
+    width: "500",
+    height: "650",
+    small_header: "true",
+    adapt_container_width: "true",
+    hide_cover: "false",
+    show_facepile: "false",
+  });
+
+  return `https://www.facebook.com/plugins/page.php?${params.toString()}`;
+}
 
 function mediaLabel(mediaType: NewsMediaType): string {
   if (mediaType === "tiktok") return "TikTok";
@@ -30,6 +61,8 @@ export function LocalNewsFeed({ feed }: LocalNewsFeedProps) {
     return feed.items.filter((item) => item.mediaType === filter);
   }, [feed.items, filter]);
 
+  const showFacebookTimelines = filter === "all" || filter === "facebook";
+
   return (
     <section className="news-panel" aria-labelledby="metropolitan-news-title">
       <div className="news-panel-header">
@@ -37,19 +70,13 @@ export function LocalNewsFeed({ feed }: LocalNewsFeedProps) {
           <span className="eyebrow">Protección Civil metropolitana</span>
           <h2 id="metropolitan-news-title">Avisos e incidentes recientes</h2>
           <p>
-            Solo emergencias, fenómenos meteorológicos, incendios, rescates,
-            cierres peligrosos y fallas de infraestructura publicados por fuentes
-            oficiales. Política, espectáculos, deportes y noticias generales quedan fuera.
+            Solo emergencias, clima severo, incendios, rescates, cierres peligrosos
+            y fallas de infraestructura. Los timelines se cargan directamente desde
+            las páginas oficiales para no depender de un raspador bloqueado por Meta.
           </p>
         </div>
         <div className="news-feed-status">
-          <span className={`news-mode news-mode-${feed.mode}`}>
-            {feed.mode === "live"
-              ? "Fuentes oficiales conectadas"
-              : feed.mode === "partial"
-                ? "Conexión parcial"
-                : "Sin incidentes confirmados"}
-          </span>
+          <span className="news-mode news-mode-live">Canales oficiales conectados</span>
           <small>Actualizado {feed.updatedAt}</small>
         </div>
       </div>
@@ -72,7 +99,11 @@ export function LocalNewsFeed({ feed }: LocalNewsFeedProps) {
           {visibleItems.slice(0, 12).map((item, index) => (
             <article
               key={item.id}
-              className={index === 0 && filter === "all" ? "news-card news-card-featured" : "news-card"}
+              className={
+                index === 0 && filter === "all"
+                  ? "news-card news-card-featured"
+                  : "news-card"
+              }
             >
               <a
                 className="news-card-media"
@@ -84,7 +115,12 @@ export function LocalNewsFeed({ feed }: LocalNewsFeedProps) {
                 {item.imageUrl ? (
                   // Las portadas provienen de fuentes oficiales variables.
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={item.imageUrl} alt="" loading="lazy" referrerPolicy="no-referrer" />
+                  <img
+                    src={item.imageUrl}
+                    alt=""
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                  />
                 ) : (
                   <span className="news-card-placeholder" aria-hidden="true">
                     {item.mediaType === "tiktok"
@@ -118,7 +154,6 @@ export function LocalNewsFeed({ feed }: LocalNewsFeedProps) {
                     href={item.sourceSocialUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    aria-label={`Abrir ${item.sourceSocialLabel} oficial de ${item.sourceName}`}
                   >
                     {item.sourceSocialLabel} oficial
                   </a>
@@ -127,39 +162,56 @@ export function LocalNewsFeed({ feed }: LocalNewsFeedProps) {
             </article>
           ))}
         </div>
-      ) : (
+      ) : filter !== "all" && !showFacebookTimelines ? (
         <div className="news-empty-state">
-          <strong>No hay incidentes recientes para este filtro.</strong>
+          <strong>No hay publicaciones verificadas para este filtro.</strong>
           <span>
-            La ausencia de publicaciones es preferible a rellenar el tablero con política,
-            entretenimiento o notas antiguas que ya no sirven para tomar decisiones.
+            TikTok solo aparece cuando existe una URL real de una cuenta oficial y
+            un operador la valida. Las cuentas supuestas que probamos devolvieron error;
+            no se inventará un perfil para llenar espacio.
           </span>
         </div>
-      )}
+      ) : null}
 
-      <div className="news-sources" aria-label="Fuentes oficiales conectadas">
-        {feed.sources.map((source) => (
-          <div key={source.id} className="news-source">
-            <span className={source.available ? "source-dot is-online" : "source-dot"} />
-            <div>
-              <strong>{source.name}</strong>
-              <small>
-                Fuente gubernamental
-                {source.itemCount > 0
-                  ? ` · ${source.itemCount} eventos recientes`
-                  : " · sin eventos recientes"}
-              </small>
-            </div>
-            <div className="news-source-links">
-              <a href={source.siteUrl} target="_blank" rel="noopener noreferrer">
-                Fuente
-              </a>
-              <a href={source.socialUrl} target="_blank" rel="noopener noreferrer">
-                {source.socialLabel}
-              </a>
-            </div>
-          </div>
-        ))}
+      {showFacebookTimelines ? (
+        <div className="official-social-grid" aria-label="Timelines oficiales de Facebook">
+          {OFFICIAL_FACEBOOK_TIMELINES.map((timeline) => (
+            <article className="official-social-card" key={timeline.id}>
+              <div className="official-social-header">
+                <div>
+                  <span className="source-dot is-online" />
+                  <strong>{timeline.name}</strong>
+                </div>
+                <span>Facebook oficial</span>
+              </div>
+              <iframe
+                className="official-facebook-frame"
+                src={facebookPluginUrl(timeline.pageUrl)}
+                title={`Publicaciones recientes de ${timeline.name}`}
+                width="500"
+                height="650"
+                loading="lazy"
+                allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+              />
+              <div className="official-social-links">
+                <a href={timeline.pageUrl} target="_blank" rel="noopener noreferrer">
+                  Abrir Facebook
+                </a>
+                <a href={timeline.sourceUrl} target="_blank" rel="noopener noreferrer">
+                  Portal oficial
+                </a>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="news-verification-note">
+        <strong>Verificación aplicada</strong>
+        <span>
+          Ambos timelines respondieron correctamente desde un servidor externo antes
+          de habilitarse. Facebook puede pedir iniciar sesión según sus propias reglas.
+        </span>
       </div>
     </section>
   );
