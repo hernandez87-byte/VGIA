@@ -1,5 +1,10 @@
-export type NewsMediaType = "article" | "video" | "facebook";
-export type NewsTrustLevel = "government" | "verified-media";
+import {
+  createClient as createSupabaseServerClient,
+  hasSupabaseServerConfig,
+} from "@/lib/supabase/server";
+
+export type NewsMediaType = "article" | "facebook" | "tiktok";
+export type NewsTrustLevel = "government";
 
 export interface LocalNewsItem {
   id: string;
@@ -8,12 +13,13 @@ export interface LocalNewsItem {
   imageUrl?: string;
   sourceId: string;
   sourceName: string;
-  sourceFacebookUrl: string;
+  sourceSocialUrl: string;
+  sourceSocialLabel: "Facebook" | "TikTok" | "Fuente oficial";
   mediaType: NewsMediaType;
   trust: NewsTrustLevel;
   publishedAt?: string;
   publishedLabel?: string;
-  isEmergencyRelated: boolean;
+  isEmergencyRelated: true;
   category: string;
 }
 
@@ -21,7 +27,8 @@ export interface LocalNewsSourceStatus {
   id: string;
   name: string;
   siteUrl: string;
-  facebookUrl: string;
+  socialUrl: string;
+  socialLabel: "Facebook" | "TikTok" | "Fuente oficial";
   trust: NewsTrustLevel;
   available: boolean;
   itemCount: number;
@@ -38,69 +45,35 @@ interface NewsSourceDefinition {
   id: string;
   name: string;
   siteUrl: string;
-  facebookUrl: string;
-  trust: NewsTrustLevel;
+  socialUrl: string;
+  socialLabel: "Facebook";
   allowedHosts: string[];
   pathMatches: (pathname: string) => boolean;
   facebookPageId?: string;
 }
+
+const RECENT_DAYS = 21;
 
 const NEWS_SOURCES: NewsSourceDefinition[] = [
   {
     id: "pcnl",
     name: "Protección Civil Nuevo León",
     siteUrl: "https://www.nl.gob.mx/es/taxonomy/term/649",
-    facebookUrl: "https://www.facebook.com/gobiernonuevoleon/",
-    trust: "government",
+    socialUrl: "https://www.facebook.com/gobiernonuevoleon/",
+    socialLabel: "Facebook",
     allowedHosts: ["nl.gob.mx", "www.nl.gob.mx"],
     pathMatches: (pathname) => pathname.startsWith("/es/boletines/"),
-    facebookPageId: process.env.META_PCNl_PAGE_ID,
+    facebookPageId: process.env.META_PCNL_PAGE_ID,
   },
   {
-    id: "telediario-mty",
-    name: "Telediario Monterrey",
-    siteUrl: "https://www.telediario.mx/monterrey",
-    facebookUrl: "https://www.facebook.com/Telediariomty/",
-    trust: "verified-media",
-    allowedHosts: ["telediario.mx", "www.telediario.mx"],
-    pathMatches: (pathname) => {
-      const blocked = [
-        "/monterrey",
-        "/ultima-hora",
-        "/policia",
-        "/espectaculos",
-        "/tendencias",
-        "/deportes",
-      ];
-      return pathname.split("/").filter(Boolean).length >= 2 && !blocked.includes(pathname);
-    },
-    facebookPageId: process.env.META_TELEDIARIO_PAGE_ID,
-  },
-  {
-    id: "info7",
-    name: "INFO7",
-    siteUrl: "https://www.info7.mx/",
-    facebookUrl: "https://www.facebook.com/Info7mty/",
-    trust: "verified-media",
-    allowedHosts: ["info7.mx", "www.info7.mx"],
-    pathMatches: (pathname) => {
-      const segments = pathname.split("/").filter(Boolean);
-      return segments.length >= 3 && !pathname.startsWith("/reporte");
-    },
-    facebookPageId: process.env.META_INFO7_PAGE_ID,
-  },
-  {
-    id: "abc-noticias",
-    name: "ABCNoticias.mx",
-    siteUrl: "https://abcnoticias.mx/local/",
-    facebookUrl: "https://www.facebook.com/abcnoticiasmty/",
-    trust: "verified-media",
-    allowedHosts: ["abcnoticias.mx", "www.abcnoticias.mx"],
-    pathMatches: (pathname) => {
-      const segments = pathname.split("/").filter(Boolean);
-      return segments.length >= 2 && !pathname.endsWith("/local");
-    },
-    facebookPageId: process.env.META_ABC_PAGE_ID,
+    id: "pc-monterrey",
+    name: "Protección Civil Monterrey",
+    siteUrl: "https://www.monterrey.gob.mx/noticias/",
+    socialUrl: "https://www.facebook.com/SSPCMonterrey/",
+    socialLabel: "Facebook",
+    allowedHosts: ["monterrey.gob.mx", "www.monterrey.gob.mx"],
+    pathMatches: (pathname) => pathname.startsWith("/noticias/"),
+    facebookPageId: process.env.META_MONTERREY_SEGURIDAD_PAGE_ID,
   },
 ];
 
@@ -110,60 +83,125 @@ const NAVIGATION_TEXT = new Set([
   "más información",
   "contacto",
   "aviso de privacidad",
-  "última hora",
-  "local",
+  "noticias",
+  "protección civil",
   "nuevo león",
-  "deportes",
-  "espectáculos",
-  "nacional",
-  "internacional",
-  "policía",
-  "política",
-  "economía",
-  "opinión",
-  "televisión",
+  "monterrey",
 ]);
 
-const EMERGENCY_KEYWORDS = [
+const EVENT_KEYWORDS = [
   "alerta",
+  "aviso preventivo",
+  "emergencia",
   "lluvia",
-  "inund",
-  "incendio",
-  "accidente",
-  "choque",
-  "bloqueo",
-  "cierre",
-  "protección civil",
-  "evacua",
-  "rescate",
-  "desaparec",
-  "balacera",
-  "sismo",
-  "huracán",
   "tormenta",
   "granizo",
-  "viento",
-  "calor",
-  "agua",
+  "inund",
+  "desbord",
+  "creciente",
+  "corriente",
+  "arroyo",
   "río",
-  "presa",
+  "incendio",
+  "fuego",
+  "humo",
+  "accidente",
+  "choque",
+  "volcadura",
+  "cierre vial",
+  "bloqueo vial",
+  "rescate",
+  "evacua",
+  "atrapad",
+  "sismo",
+  "huracán",
+  "ciclón",
+  "viento fuerte",
+  "ráfaga",
+  "frente frío",
+  "helada",
+  "onda de calor",
+  "temperatura extrema",
+  "altas temperaturas",
   "fuga",
+  "derrame",
+  "explosión",
+  "nube tóxica",
   "contamin",
   "calidad del aire",
-  "vial",
-  "metro",
+  "apagón",
+  "sin energía",
+  "caída de árbol",
+  "socavón",
+  "deslave",
+  "derrumbe",
+  "colapso",
+  "presa",
+  "desfogue",
+  "corte de agua",
+  "falta de agua",
+  "drenaje",
+];
+
+const EXCLUDED_TOPICS = [
+  "alcalde",
+  "gobernador",
+  "diputad",
+  "partido",
+  "elecci",
+  "campaña",
+  "cabildo",
+  "congreso",
+  "reforma",
+  "inaugur",
+  "capacita",
+  "capacitación",
+  "curso",
+  "taller",
+  "simulacro",
+  "mesa de trabajo",
+  "presenta resultados",
+  "reconoce",
+  "premia",
+  "mundial",
+  "fifa",
+  "turismo",
+  "cultura",
+  "concierto",
+  "festival",
+  "espectáculo",
+  "deporte",
+  "fútbol",
+  "economía",
+  "empleo",
 ];
 
 const CATEGORY_RULES: Array<[string, string[]]> = [
-  ["Clima", ["lluvia", "tormenta", "granizo", "huracán", "calor", "viento"]],
-  ["Inundación", ["inund", "corriente", "río", "arroyo", "presa"]],
+  ["Clima", ["lluvia", "tormenta", "granizo", "huracán", "ciclón", "calor", "viento", "helada", "frente frío"]],
+  ["Inundación", ["inund", "corriente", "río", "arroyo", "presa", "desbord", "desfogue"]],
   ["Incendio", ["incendio", "fuego", "humo"]],
-  ["Movilidad", ["vial", "choque", "accidente", "bloqueo", "cierre", "metro"]],
-  ["Seguridad", ["balacera", "detienen", "homicidio", "desaparec", "robo"]],
-  ["Protección Civil", ["protección civil", "rescate", "evacua", "alerta"]],
+  ["Movilidad", ["vial", "choque", "accidente", "volcadura", "bloqueo", "cierre"]],
+  ["Rescate", ["rescate", "evacua", "atrapad"]],
+  ["Sismo", ["sismo", "terremoto", "réplica"]],
+  ["Riesgo químico", ["fuga", "derrame", "explosión", "nube tóxica"]],
   ["Ambiente", ["calidad del aire", "contamin", "ozono", "partículas"]],
   ["Agua", ["agua", "presa", "acueducto", "drenaje"]],
+  ["Infraestructura", ["apagón", "energía", "socavón", "derrumbe", "colapso", "árbol"]],
 ];
+
+const SOCIAL_CATEGORY_LABELS: Record<string, string> = {
+  clima: "Clima",
+  inundacion: "Inundación",
+  incendio: "Incendio",
+  movilidad: "Movilidad",
+  rescate: "Rescate",
+  sismo: "Sismo",
+  huracan: "Huracán",
+  quimico: "Riesgo químico",
+  agua: "Agua",
+  infraestructura: "Infraestructura",
+  otro: "Protección Civil",
+};
 
 function decodeHtml(value: string): string {
   return value
@@ -206,11 +244,19 @@ function extractImageUrl(fragment: string, baseUrl: string): string | undefined 
 function titleLooksUseful(title: string): boolean {
   const normalized = title.toLocaleLowerCase("es-MX");
   return (
-    title.length >= 28 &&
-    title.length <= 220 &&
+    title.length >= 20 &&
+    title.length <= 280 &&
     !NAVIGATION_TEXT.has(normalized) &&
     !normalized.startsWith("image") &&
     !normalized.includes("activar sonido")
+  );
+}
+
+function isRelevantEmergencyEvent(title: string): boolean {
+  const normalized = title.toLocaleLowerCase("es-MX");
+  return (
+    EVENT_KEYWORDS.some((keyword) => normalized.includes(keyword)) &&
+    !EXCLUDED_TOPICS.some((keyword) => normalized.includes(keyword))
   );
 }
 
@@ -219,28 +265,68 @@ function inferCategory(title: string): string {
   return (
     CATEGORY_RULES.find(([, keywords]) =>
       keywords.some((keyword) => normalized.includes(keyword)),
-    )?.[0] ?? "Local"
+    )?.[0] ?? "Protección Civil"
   );
 }
 
-function isEmergencyRelated(title: string): boolean {
-  const normalized = title.toLocaleLowerCase("es-MX");
-  return EMERGENCY_KEYWORDS.some((keyword) => normalized.includes(keyword));
+const MONTHS: Record<string, number> = {
+  enero: 0,
+  febrero: 1,
+  marzo: 2,
+  abril: 3,
+  mayo: 4,
+  junio: 5,
+  julio: 6,
+  agosto: 7,
+  septiembre: 8,
+  octubre: 9,
+  noviembre: 10,
+  diciembre: 11,
+};
+
+function formatPublishedDate(value: Date): string {
+  return new Intl.DateTimeFormat("es-MX", {
+    timeZone: "America/Monterrey",
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(value);
 }
 
-function inferMediaType(title: string, url: string): NewsMediaType {
-  const normalized = `${title} ${url}`.toLocaleLowerCase("es-MX");
-  return /\bvideo\b|en vivo|\/videos?\/|\/television\//.test(normalized)
-    ? "video"
-    : "article";
+function publishedInfoNear(
+  html: string,
+  index: number,
+): { publishedAt?: string; publishedLabel?: string } {
+  const context = decodeHtml(html.slice(Math.max(0, index - 260), index + 420));
+  const slashDate = context.match(/(?:Publicado el\s*)?(\d{1,2})\/(\d{1,2})\/(\d{4})/i);
+  if (slashDate) {
+    const date = new Date(
+      Date.UTC(Number(slashDate[3]), Number(slashDate[2]) - 1, Number(slashDate[1]), 18),
+    );
+    return { publishedAt: date.toISOString(), publishedLabel: formatPublishedDate(date) };
+  }
+
+  const writtenDate = context.match(
+    /(\d{1,2})\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+(\d{4})/i,
+  );
+  if (writtenDate) {
+    const month = MONTHS[writtenDate[2].toLocaleLowerCase("es-MX")];
+    const date = new Date(Date.UTC(Number(writtenDate[3]), month, Number(writtenDate[1]), 18));
+    return { publishedAt: date.toISOString(), publishedLabel: formatPublishedDate(date) };
+  }
+
+  return {};
 }
 
-function publishedLabelNear(html: string, index: number): string | undefined {
-  const context = decodeHtml(html.slice(Math.max(0, index - 180), index + 260));
-  const date = context.match(/Publicado el\s+(\d{1,2}\/\d{1,2}\/\d{4})/i)?.[1];
-  if (date) return date;
-  const time = context.match(/(?:^|\s)([01]?\d|2[0-3]):[0-5]\d(?:\s|$)/)?.[0]?.trim();
-  return time;
+function isRecent(publishedAt?: string): boolean {
+  if (!publishedAt) return true;
+  const timestamp = new Date(publishedAt).getTime();
+  return timestamp >= Date.now() - RECENT_DAYS * 24 * 60 * 60 * 1000;
+}
+
+function stableItemId(prefix: string, value: string): string {
+  return `${prefix}-${encodeURIComponent(value).replace(/%/g, "").slice(-90)}`;
 }
 
 function parseWebsiteItems(
@@ -253,7 +339,7 @@ function parseWebsiteItems(
   const anchorPattern = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
 
   let match: RegExpExecArray | null;
-  while ((match = anchorPattern.exec(html)) && items.length < 14) {
+  while ((match = anchorPattern.exec(html)) && items.length < 10) {
     const url = absoluteUrl(match[1], source.siteUrl);
     if (!url || seenUrls.has(url)) continue;
 
@@ -262,26 +348,31 @@ function parseWebsiteItems(
     if (!source.pathMatches(parsedUrl.pathname.replace(/\/$/, ""))) continue;
 
     const title = decodeHtml(match[2]);
-    if (!titleLooksUseful(title)) continue;
+    if (!titleLooksUseful(title) || !isRelevantEmergencyEvent(title)) continue;
 
     const titleKey = title.toLocaleLowerCase("es-MX").replace(/[^a-záéíóúñ0-9]+/g, " ");
     if (seenTitles.has(titleKey)) continue;
+
+    const published = publishedInfoNear(html, match.index);
+    if (!isRecent(published.publishedAt)) continue;
 
     seenUrls.add(url);
     seenTitles.add(titleKey);
 
     items.push({
-      id: `${source.id}-${Buffer.from(url).toString("base64url").slice(0, 24)}`,
+      id: stableItemId(source.id, url),
       title,
       url,
       imageUrl: extractImageUrl(match[2], source.siteUrl),
       sourceId: source.id,
       sourceName: source.name,
-      sourceFacebookUrl: source.facebookUrl,
-      mediaType: inferMediaType(title, url),
-      trust: source.trust,
-      publishedLabel: publishedLabelNear(html, match.index),
-      isEmergencyRelated: isEmergencyRelated(title),
+      sourceSocialUrl: source.socialUrl,
+      sourceSocialLabel: source.socialLabel,
+      mediaType: "article",
+      trust: "government",
+      publishedAt: published.publishedAt,
+      publishedLabel: published.publishedLabel,
+      isEmergencyRelated: true,
       category: inferCategory(title),
     });
   }
@@ -294,10 +385,10 @@ async function fetchWebsiteSource(source: NewsSourceDefinition): Promise<LocalNe
     headers: {
       Accept: "text/html,application/xhtml+xml",
       "Accept-Language": "es-MX,es;q=0.9",
-      "User-Agent": "VIGIA-NewsBot/0.1 (+local emergency information aggregator)",
+      "User-Agent": "VIGIA-EmergencyFeed/0.2 (+official civil protection events)",
     },
     next: { revalidate: 300 },
-    signal: AbortSignal.timeout(8_000),
+    signal: AbortSignal.timeout(6_000),
   });
 
   if (!response.ok) {
@@ -313,9 +404,6 @@ interface FacebookGraphPost {
   created_time?: string;
   permalink_url?: string;
   full_picture?: string;
-  attachments?: {
-    data?: Array<{ media_type?: string; type?: string }>;
-  };
 }
 
 async function fetchFacebookItems(
@@ -325,38 +413,35 @@ async function fetchFacebookItems(
   if (!token || !source.facebookPageId) return [];
 
   const graphVersion = process.env.META_GRAPH_VERSION ?? "v24.0";
-  const fields = [
-    "id",
-    "message",
-    "created_time",
-    "permalink_url",
-    "full_picture",
-    "attachments{media_type,type}",
-  ].join(",");
   const endpoint = new URL(
     `https://graph.facebook.com/${graphVersion}/${source.facebookPageId}/posts`,
   );
-  endpoint.searchParams.set("fields", fields);
-  endpoint.searchParams.set("limit", "6");
+  endpoint.searchParams.set(
+    "fields",
+    "id,message,created_time,permalink_url,full_picture",
+  );
+  endpoint.searchParams.set("limit", "12");
   endpoint.searchParams.set("access_token", token);
 
   const response = await fetch(endpoint, {
     next: { revalidate: 300 },
-    signal: AbortSignal.timeout(8_000),
+    signal: AbortSignal.timeout(6_000),
   });
   if (!response.ok) return [];
 
   const payload = (await response.json()) as { data?: FacebookGraphPost[] };
   return (payload.data ?? [])
-    .filter((post) => post.message && post.permalink_url)
+    .filter((post) => {
+      const title = decodeHtml(post.message ?? "");
+      return (
+        Boolean(post.permalink_url) &&
+        titleLooksUseful(title) &&
+        isRelevantEmergencyEvent(title) &&
+        isRecent(post.created_time)
+      );
+    })
     .map((post) => {
-      const title = decodeHtml(post.message ?? "").slice(0, 220);
-      const attachment = post.attachments?.data?.[0];
-      const mediaType =
-        attachment?.media_type === "video" || attachment?.type?.includes("video")
-          ? "video"
-          : "facebook";
-
+      const title = decodeHtml(post.message ?? "").slice(0, 280);
       return {
         id: `facebook-${post.id}`,
         title,
@@ -364,71 +449,182 @@ async function fetchFacebookItems(
         imageUrl: post.full_picture,
         sourceId: source.id,
         sourceName: source.name,
-        sourceFacebookUrl: source.facebookUrl,
-        mediaType,
-        trust: source.trust,
+        sourceSocialUrl: source.socialUrl,
+        sourceSocialLabel: "Facebook",
+        mediaType: "facebook",
+        trust: "government",
         publishedAt: post.created_time,
         publishedLabel: post.created_time
-          ? new Intl.DateTimeFormat("es-MX", {
-              day: "2-digit",
-              month: "short",
-              hour: "2-digit",
-              minute: "2-digit",
-            }).format(new Date(post.created_time))
+          ? formatPublishedDate(new Date(post.created_time))
           : undefined,
-        isEmergencyRelated: isEmergencyRelated(title),
+        isEmergencyRelated: true,
         category: inferCategory(title),
       } satisfies LocalNewsItem;
     });
 }
 
-function interleave(sourceItems: LocalNewsItem[][]): LocalNewsItem[] {
-  const output: LocalNewsItem[] = [];
-  const maximumLength = Math.max(0, ...sourceItems.map((items) => items.length));
+interface OfficialSocialPostRow {
+  id: string;
+  platform: "tiktok" | "facebook";
+  source_name: string;
+  source_account_url: string;
+  post_url: string;
+  title: string;
+  category: string;
+  published_at: string;
+  thumbnail_url: string | null;
+}
 
-  for (let index = 0; index < maximumLength; index += 1) {
-    sourceItems.forEach((items) => {
-      const item = items[index];
-      if (item) output.push(item);
+interface TikTokOEmbedResponse {
+  title?: string;
+  author_name?: string;
+  author_url?: string;
+  thumbnail_url?: string;
+}
+
+async function fetchTikTokMetadata(url: string): Promise<TikTokOEmbedResponse | null> {
+  try {
+    const endpoint = new URL("https://www.tiktok.com/oembed");
+    endpoint.searchParams.set("url", url);
+    const response = await fetch(endpoint, {
+      next: { revalidate: 900 },
+      signal: AbortSignal.timeout(5_000),
     });
+    if (!response.ok) return null;
+    return (await response.json()) as TikTokOEmbedResponse;
+  } catch {
+    return null;
   }
+}
 
-  return output;
+async function fetchVerifiedSocialPosts(): Promise<LocalNewsItem[]> {
+  if (!hasSupabaseServerConfig()) return [];
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const cutoff = new Date(
+      Date.now() - RECENT_DAYS * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    const { data, error } = await supabase
+      .from("official_social_posts")
+      .select(
+        "id,platform,source_name,source_account_url,post_url,title,category,published_at,thumbnail_url",
+      )
+      .eq("is_verified", true)
+      .eq("is_active", true)
+      .gte("published_at", cutoff)
+      .order("published_at", { ascending: false })
+      .limit(16);
+
+    if (error || !data) return [];
+
+    return await Promise.all(
+      (data as OfficialSocialPostRow[])
+        .filter((row) => isRelevantEmergencyEvent(row.title))
+        .map(async (row) => {
+          const tiktokMetadata =
+            row.platform === "tiktok"
+              ? await fetchTikTokMetadata(row.post_url)
+              : null;
+          const title = decodeHtml(tiktokMetadata?.title ?? row.title).slice(0, 280);
+
+          return {
+            id: row.id,
+            title,
+            url: row.post_url,
+            imageUrl: tiktokMetadata?.thumbnail_url ?? row.thumbnail_url ?? undefined,
+            sourceId: `social-${row.source_name.toLocaleLowerCase("es-MX").replace(/[^a-z0-9]+/g, "-")}`,
+            sourceName: tiktokMetadata?.author_name ?? row.source_name,
+            sourceSocialUrl: tiktokMetadata?.author_url ?? row.source_account_url,
+            sourceSocialLabel: row.platform === "tiktok" ? "TikTok" : "Facebook",
+            mediaType: row.platform,
+            trust: "government",
+            publishedAt: row.published_at,
+            publishedLabel: formatPublishedDate(new Date(row.published_at)),
+            isEmergencyRelated: true,
+            category: SOCIAL_CATEGORY_LABELS[row.category] ?? "Protección Civil",
+          } satisfies LocalNewsItem;
+        }),
+    );
+  } catch {
+    return [];
+  }
+}
+
+function uniqueAndSort(items: LocalNewsItem[]): LocalNewsItem[] {
+  const unique = Array.from(
+    new Map(items.map((item) => [item.url, item])).values(),
+  );
+
+  return unique
+    .sort((left, right) => {
+      const leftTime = left.publishedAt ? new Date(left.publishedAt).getTime() : 0;
+      const rightTime = right.publishedAt ? new Date(right.publishedAt).getTime() : 0;
+      return rightTime - leftTime;
+    })
+    .slice(0, 18);
 }
 
 export async function getLocalNewsFeed(): Promise<LocalNewsFeed> {
-  const results = await Promise.all(
-    NEWS_SOURCES.map(async (source) => {
-      try {
-        const [websiteItems, facebookItems] = await Promise.all([
-          fetchWebsiteSource(source),
-          fetchFacebookItems(source),
-        ]);
-        const items = [...facebookItems, ...websiteItems].slice(0, 10);
-        return { source, items, available: items.length > 0 };
-      } catch {
-        return { source, items: [] as LocalNewsItem[], available: false };
-      }
-    }),
+  const [websiteResults, verifiedSocialPosts] = await Promise.all([
+    Promise.all(
+      NEWS_SOURCES.map(async (source) => {
+        try {
+          const [websiteItems, facebookItems] = await Promise.all([
+            fetchWebsiteSource(source),
+            fetchFacebookItems(source),
+          ]);
+          const items = [...facebookItems, ...websiteItems].slice(0, 10);
+          return { source, items, available: items.length > 0 };
+        } catch {
+          return { source, items: [] as LocalNewsItem[], available: false };
+        }
+      }),
+    ),
+    fetchVerifiedSocialPosts(),
+  ]);
+
+  const items = uniqueAndSort([
+    ...verifiedSocialPosts,
+    ...websiteResults.flatMap((result) => result.items),
+  ]);
+  const socialSources = Array.from(
+    new Map(
+      verifiedSocialPosts.map((item) => [
+        item.sourceId,
+        {
+          id: item.sourceId,
+          name: item.sourceName,
+          siteUrl: item.sourceSocialUrl,
+          socialUrl: item.sourceSocialUrl,
+          socialLabel: item.sourceSocialLabel,
+          trust: "government" as const,
+          available: true,
+          itemCount: verifiedSocialPosts.filter(
+            (candidate) => candidate.sourceId === item.sourceId,
+          ).length,
+        },
+      ]),
+    ).values(),
   );
-
-  const combined = interleave(results.map((result) => result.items));
-  const unique = Array.from(
-    new Map(combined.map((item) => [item.url, item])).values(),
-  ).slice(0, 16);
-  const availableSources = results.filter((result) => result.available).length;
-
-  return {
-    items: unique,
-    sources: results.map(({ source, items, available }) => ({
+  const sources: LocalNewsSourceStatus[] = [
+    ...websiteResults.map(({ source, items: sourceItems, available }) => ({
       id: source.id,
       name: source.name,
       siteUrl: source.siteUrl,
-      facebookUrl: source.facebookUrl,
-      trust: source.trust,
+      socialUrl: source.socialUrl,
+      socialLabel: source.socialLabel,
+      trust: "government" as const,
       available,
-      itemCount: items.length,
+      itemCount: sourceItems.length,
     })),
+    ...socialSources,
+  ];
+  const availableSources = sources.filter((source) => source.available).length;
+
+  return {
+    items,
+    sources,
     updatedAt: new Intl.DateTimeFormat("es-MX", {
       timeZone: "America/Monterrey",
       hour: "2-digit",
@@ -439,7 +635,7 @@ export async function getLocalNewsFeed(): Promise<LocalNewsFeed> {
     mode:
       availableSources === 0
         ? "unavailable"
-        : availableSources === NEWS_SOURCES.length
+        : availableSources === sources.length
           ? "live"
           : "partial",
   };
