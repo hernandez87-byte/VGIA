@@ -1,20 +1,30 @@
 # VIGÍA
 
-VIGÍA es una plataforma de prevención, respuesta y recuperación ante emergencias. Convierte alertas, mapas de riesgo, rutas, refugios y recursos disponibles en una instrucción clara para cada persona.
+VIGÍA es una plataforma de prevención, respuesta y recuperación ante emergencias. Convierte eventos, mapas de riesgo, cierres y recursos disponibles en instrucciones claras para cada persona.
 
-> Estado: base inicial del MVP. Los datos mostrados son demostrativos y no deben usarse para tomar decisiones reales de emergencia.
+> Estado: MVP conectado. El proyecto contiene datos de simulación claramente identificados y todavía no debe usarse como sustituto de Protección Civil, servicios de emergencia o evaluación profesional.
 
-## Qué incluye esta primera entrega
+## Integraciones activas
 
-- Panel ciudadano responsive en Next.js.
-- Escenario demostrativo de inundación con acción recomendada.
-- Selector de amenazas: inundación, incendio, sismo, huracán, fuga química, sequía e impacto cósmico.
-- Vista de ruta segura, refugio recomendado, recursos y estado familiar.
-- Motor de puntuación de riesgo desacoplado.
-- Esquema inicial de Supabase/PostGIS.
-- Manifiesto PWA y endpoint de salud.
-- Documentación de producto y arquitectura.
-- Flujo de integración continua para lint, tipos y build.
+- Next.js 16, React 19 y TypeScript estricto.
+- Supabase Auth con sesiones SSR.
+- PostgreSQL + PostGIS para zonas, cierres y recursos.
+- Supabase Realtime para actualizar el tablero.
+- Storage privado para evidencias de reportes.
+- Edge Function `ingest-alert` protegida por JWT y rol de operador.
+- MapLibre para visualizar geometrías y recursos.
+- PWA con caché conservador de la carcasa pública.
+- GitHub Actions para lint, tipos y build.
+
+## Funciones disponibles
+
+- Lectura pública de eventos verificados y no vencidos.
+- Mapa de zonas de riesgo, cierres y recursos.
+- Búsqueda geoespacial de recursos cercanos.
+- Inicio de sesión y registro por correo.
+- Actualización automática mediante Realtime.
+- Endpoint de salud con comprobación real de base de datos.
+- Fallback local que nunca se presenta como información oficial.
 
 ## Inicio local
 
@@ -24,7 +34,61 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Abre `http://localhost:3000`.
+Completa `.env.local`:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=https://TU_PROYECTO.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+NEXT_PUBLIC_MAP_STYLE_URL=https://demotiles.maplibre.org/style.json
+NEXT_PUBLIC_DEFAULT_LATITUDE=25.6866
+NEXT_PUBLIC_DEFAULT_LONGITUDE=-100.3161
+```
+
+No coloques una clave `service_role` o secreta en variables `NEXT_PUBLIC_*`.
+
+## Base de datos
+
+Las migraciones se encuentran en `supabase/migrations` y los datos demostrativos en `supabase/seed.sql`.
+
+```bash
+supabase link --project-ref TU_PROJECT_REF
+supabase db push
+supabase db reset --linked
+```
+
+`db reset --linked` destruye datos; úsalo únicamente en un proyecto de desarrollo. La vida ya trae suficientes accidentes sin añadir uno manualmente.
+
+## API
+
+### Tablero
+
+```http
+GET /api/dashboard
+```
+
+### Recursos cercanos
+
+```http
+GET /api/nearby-resources?lat=25.6866&lng=-100.3161&radius=15000
+```
+
+### Salud
+
+```http
+GET /api/health
+```
+
+Responde `503` cuando la base no está configurada o no puede alcanzarse.
+
+## Publicación de alertas
+
+La Edge Function `ingest-alert` exige:
+
+1. JWT válido.
+2. `app_metadata.role` con valor `operator` o `admin`.
+3. Carga útil validada con tipo, fuente, severidad, fechas e instrucciones.
+
+Una cuenta normal no puede publicar eventos.
 
 ## Comandos
 
@@ -33,28 +97,38 @@ npm run dev
 npm run lint
 npm run typecheck
 npm run build
+npm run check
 ```
 
 ## Estructura
 
 ```text
-app/                    Aplicación y API
-components/             Interfaz reutilizable
-lib/domain/             Tipos del dominio
-lib/risk/               Motor de riesgo demostrativo
-supabase/migrations/    Esquema geoespacial inicial
-docs/                   Producto y arquitectura
+app/                         Aplicación, autenticación y API
+components/                  Interfaz y mapa
+lib/data/                    Consultas del tablero
+lib/domain/                  Tipos del dominio
+lib/supabase/                Clientes de navegador, servidor y proxy
+supabase/functions/          Funciones protegidas
+supabase/migrations/         Esquema, RLS, vistas y RPC
+supabase/seed.sql            Datos de simulación
+public/sw.js                 Modo degradado sin conexión
+docs/                        Producto y arquitectura
 ```
 
-## Principio de seguridad
+## Reglas de seguridad
 
-VIGÍA debe mostrar siempre fuente, hora y confianza. La IA puede resumir y priorizar, pero no declarar un edificio seguro, inventar una evacuación, certificar agua potable ni sustituir autoridades o especialistas.
+- Mostrar siempre fuente, hora, vigencia y confianza.
+- No declarar edificios seguros mediante IA.
+- No certificar potabilidad sin verificación sanitaria.
+- No inventar órdenes de evacuación.
+- No publicar recursos privados o infraestructura sensible.
+- No calcular rutas “seguras” sin cierres, riesgo por segmento y datos vigentes.
+- No guardar sesión, API ni datos personalizados en el service worker.
 
-## Próximo incremento
+## Límites actuales
 
-1. Conectar Supabase.
-2. Integrar mapa real con MapLibre.
-3. Cargar capas geográficas de Monterrey.
-4. Implementar autenticación y plan familiar.
-5. Integrar alertas oficiales y verificación de refugios.
-6. Añadir modo sin conexión.
+- Los datos cargados inicialmente son simulaciones.
+- Todavía no hay navegación vial ni motor de evacuación.
+- No existen conectores oficiales con Protección Civil, CONAGUA, SSN o SMN.
+- El modo sin conexión guarda la interfaz pública, no garantiza datos operativos recientes.
+- La información familiar todavía requiere completar sus pantallas de administración.
