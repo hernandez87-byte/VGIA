@@ -1,11 +1,15 @@
 import type { Metadata, Viewport } from "next";
+import "maplibre-gl/dist/maplibre-gl.css";
 import "./globals.css";
+import "./integrations.css";
+import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
 
 export const metadata: Metadata = {
   title: "VIGÍA | Decisiones seguras ante emergencias",
   description:
     "Plataforma de prevención, respuesta y recuperación ante emergencias.",
   applicationName: "VIGÍA",
+  manifest: "/manifest.webmanifest",
 };
 
 export const viewport: Viewport = {
@@ -17,7 +21,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="es">
-      <body>{children}</body>
+      <body>
+        {children}
+        <ServiceWorkerRegistration />
+      </body>
     </html>
   );
 }
