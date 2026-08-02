@@ -2,10 +2,15 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createClient, hasSupabaseServerConfig } from "@/lib/supabase/server";
 
+function safeRedirectPath(value: string | null) {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/";
+  return value;
+}
+
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
-  const redirectTo = requestUrl.searchParams.get("next") ?? "/";
+  const redirectTo = safeRedirectPath(requestUrl.searchParams.get("next"));
 
   if (code && hasSupabaseServerConfig()) {
     const supabase = await createClient();
