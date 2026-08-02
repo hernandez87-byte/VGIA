@@ -9,6 +9,7 @@ import {
   NavigationControl,
   Popup,
   type GeoJSONSourceSpecification,
+  type StyleSpecification,
 } from "maplibre-gl";
 import type {
   HazardZone,
@@ -28,9 +29,45 @@ const DEFAULT_LATITUDE = Number(
 const DEFAULT_LONGITUDE = Number(
   process.env.NEXT_PUBLIC_DEFAULT_LONGITUDE ?? "-100.3161",
 );
-const MAP_STYLE =
-  process.env.NEXT_PUBLIC_MAP_STYLE_URL ??
-  "https://demotiles.maplibre.org/style.json";
+
+const configuredMapStyle = process.env.NEXT_PUBLIC_MAP_STYLE_URL?.trim();
+
+const OPENSTREETMAP_STYLE: StyleSpecification = {
+  version: 8,
+  sources: {
+    openstreetmap: {
+      type: "raster",
+      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+      tileSize: 256,
+      minzoom: 0,
+      maxzoom: 19,
+      attribution: "© OpenStreetMap contributors",
+    },
+  },
+  layers: [
+    {
+      id: "openstreetmap-basemap",
+      type: "raster",
+      source: "openstreetmap",
+      minzoom: 0,
+      maxzoom: 22,
+      paint: {
+        "raster-fade-duration": 0,
+      },
+    },
+  ],
+};
+
+function resolveMapStyle(): string | StyleSpecification {
+  if (
+    !configuredMapStyle ||
+    configuredMapStyle.includes("demotiles.maplibre.org/style.json")
+  ) {
+    return OPENSTREETMAP_STYLE;
+  }
+
+  return configuredMapStyle;
+}
 
 const markerSymbol: Record<ResourcePoint["category"], string> = {
   shelter: "⌂",
@@ -70,13 +107,17 @@ export function RiskMap({
   const [mapState, setMapState] = useState<"loading" | "ready" | "error">(
     "loading",
   );
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     if (!mapContainer.current) return;
 
+    setMapState("loading");
+    let hasLoaded = false;
+
     const map = new Map({
       container: mapContainer.current,
-      style: MAP_STYLE,
+      style: resolveMapStyle(),
       center: [DEFAULT_LONGITUDE, DEFAULT_LATITUDE],
       zoom: 11.8,
       attributionControl: true,
@@ -93,8 +134,14 @@ export function RiskMap({
     );
 
     const markers: Marker[] = [];
+    const loadTimeout = window.setTimeout(() => {
+      if (!hasLoaded) setMapState("error");
+    }, 15000);
 
-    map.on("load", () => {
+    map.once("load", () => {
+      hasLoaded = true;
+      window.clearTimeout(loadTimeout);
+
       const zoneCollection = {
         type: "FeatureCollection" as const,
         features: hazardZones.map((zone) => ({
@@ -185,13 +232,17 @@ export function RiskMap({
       setMapState("ready");
     });
 
-    map.on("error", () => setMapState("error"));
+    map.on("error", (event) => {
+      console.error("VIGÍA MapLibre error", event.error);
+      if (!hasLoaded) setMapState("error");
+    });
 
     return () => {
+      window.clearTimeout(loadTimeout);
       markers.forEach((marker) => marker.remove());
       map.remove();
     };
-  }, [hazardZones, resources, roadClosures]);
+  }, [hazardZones, resources, retryKey, roadClosures]);
 
   return (
     <section className="map-card" aria-label="Mapa operativo de VIGÍA">
@@ -212,7 +263,21 @@ export function RiskMap({
         </span>
       </div>
 
-      <div ref={mapContainer} className="live-map" />
+      <div className="live-map-shell">
+        <div ref={mapContainer} className="live-map" />
+        {mapState === "error" ? (
+          <div className="map-error-panel" role="alert">
+            <strong>No se pudo cargar el mapa base</strong>
+            <span>
+              Revisa la conexión a internet o vuelve a intentar. Los eventos y
+              recursos siguen disponibles en las tarjetas inferiores.
+            </span>
+            <button type="button" onClick={() => setRetryKey((value) => value + 1)}>
+              Reintentar mapa
+            </button>
+          </div>
+        ) : null}
+      </div>
 
       <div className="map-footer">
         <div>
