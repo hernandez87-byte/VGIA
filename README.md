@@ -2,9 +2,9 @@
 
 VIGÍA es una plataforma de prevención, respuesta y recuperación ante emergencias. Convierte alertas, mapas de riesgo, rutas, refugios y recursos disponibles en una instrucción clara para cada persona.
 
-> Estado: base inicial del MVP. Los datos mostrados son demostrativos y no deben usarse para tomar decisiones reales de emergencia.
+> Estado: MVP en desarrollo. La sección de actividad observada ya consume fuentes externas reales; el escenario principal, las rutas y la disponibilidad operativa continúan siendo demostrativos.
 
-## Qué incluye esta primera entrega
+## Qué incluye
 
 - Panel ciudadano responsive en Next.js.
 - Escenario demostrativo de inundación con acción recomendada.
@@ -12,9 +12,16 @@ VIGÍA es una plataforma de prevención, respuesta y recuperación ante emergenc
 - Vista de ruta segura, refugio recomendado, recursos y estado familiar.
 - Motor de puntuación de riesgo desacoplado.
 - Esquema inicial de Supabase/PostGIS.
-- Manifiesto PWA y endpoint de salud.
-- Documentación de producto y arquitectura.
-- Flujo de integración continua para lint, tipos y build.
+- Manifiesto PWA y endpoints de salud y actividad en vivo.
+- Integración continua para lint, tipos y build.
+
+## Fuentes reales conectadas
+
+- **USGS Earthquake Hazards Program:** sismos M2.5+ de las últimas 24 horas mediante GeoJSON.
+- **NASA EONET v3:** incendios, inundaciones, tormentas, volcanes, deslaves y otros eventos naturales abiertos.
+- **OpenStreetMap Overpass:** hospitales, clínicas, farmacias, bomberos, refugios, infraestructura de agua y ferreterías alrededor de Monterrey.
+
+Los recursos provenientes de OpenStreetMap son datos comunitarios. Su presencia en el mapa no confirma que estén abiertos, tengan inventario o sean seguros durante una emergencia.
 
 ## Inicio local
 
@@ -25,6 +32,15 @@ npm run dev
 ```
 
 Abre `http://localhost:3000`.
+
+## Endpoints
+
+```text
+GET /api/health
+GET /api/live
+```
+
+`/api/live` devuelve un snapshot tolerante a fallos. Si una fuente externa no responde, las demás siguen disponibles y el endpoint marca la conexión degradada.
 
 ## Comandos
 
@@ -40,10 +56,11 @@ npm run build
 ```text
 app/                    Aplicación y API
 components/             Interfaz reutilizable
+lib/data-sources/       Conectores y agregador de fuentes externas
 lib/domain/             Tipos del dominio
 lib/risk/               Motor de riesgo demostrativo
 supabase/migrations/    Esquema geoespacial inicial
-docs/                   Producto y arquitectura
+docs/                   Producto, arquitectura y fuentes
 ```
 
 ## Principio de seguridad
@@ -52,9 +69,9 @@ VIGÍA debe mostrar siempre fuente, hora y confianza. La IA puede resumir y prio
 
 ## Próximo incremento
 
-1. Conectar Supabase.
-2. Integrar mapa real con MapLibre.
-3. Cargar capas geográficas de Monterrey.
-4. Implementar autenticación y plan familiar.
-5. Integrar alertas oficiales y verificación de refugios.
-6. Añadir modo sin conexión.
+1. Crear y enlazar el proyecto real de Supabase.
+2. Persistir snapshots externos con deduplicación y auditoría.
+3. Integrar mapa real con MapLibre.
+4. Cargar capas oficiales de Monterrey y Protección Civil.
+5. Implementar autenticación y plan familiar.
+6. Añadir modo sin conexión funcional.
