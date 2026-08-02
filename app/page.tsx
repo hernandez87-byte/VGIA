@@ -2,18 +2,25 @@ import { BrandMark } from "@/components/brand-mark";
 import { DecisionCard } from "@/components/decision-card";
 import { EventSelector } from "@/components/event-selector";
 import { FamilyStatus } from "@/components/family-status";
+import { LiveDataPanel } from "@/components/live-data-panel";
 import { ResourceList } from "@/components/resource-list";
 import { RiskMap } from "@/components/risk-map";
+import { getLiveSnapshot } from "@/lib/data-sources/live-snapshot";
 import { activeEvent, familyStatuses, resources } from "@/lib/mock-data";
 
-export default function Home() {
+export default async function Home() {
+  const liveSnapshot = await getLiveSnapshot();
+  const onlineSources = liveSnapshot.sources.filter(
+    (source) => source.status === "online",
+  ).length;
+
   return (
     <main className="app-shell">
       <header className="topbar">
         <BrandMark />
         <div className="topbar-center">
           <span className="live-pulse" />
-          <span>Monterrey · Centro de operaciones activo</span>
+          <span>Monterrey · {onlineSources}/{liveSnapshot.sources.length} fuentes conectadas</span>
         </div>
         <nav className="topbar-actions" aria-label="Acciones principales">
           <button type="button" className="topbar-button">Sin conexión: listo</button>
@@ -23,8 +30,8 @@ export default function Home() {
 
       <div className="emergency-banner" role="status">
         <span className="banner-icon" aria-hidden="true">!</span>
-        <p><strong>Alerta activa:</strong> {activeEvent.title}</p>
-        <span>Fuente oficial · hace 4 minutos</span>
+        <p><strong>Escenario demostrativo:</strong> {activeEvent.title}</p>
+        <span>La sección “Actividad observada” ya consume fuentes externas reales</span>
       </div>
 
       <div className="dashboard">
@@ -34,6 +41,7 @@ export default function Home() {
         </section>
 
         <EventSelector />
+        <LiveDataPanel snapshot={liveSnapshot} />
 
         <section className="operations-grid">
           <ResourceList resources={resources} />
@@ -56,7 +64,7 @@ export default function Home() {
       </div>
 
       <footer className="footer-note">
-        Prototipo demostrativo. No sustituye instrucciones oficiales ni evaluación profesional.
+        Los datos reales se muestran con su fuente y nivel de verificación. El escenario principal continúa siendo demostrativo y no sustituye instrucciones oficiales.
       </footer>
     </main>
   );
