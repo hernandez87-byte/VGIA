@@ -14,11 +14,19 @@ const LIVE_TABLES = [
   "road_closures",
 ] as const;
 
+const NEWS_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+
 export function LiveRefresh() {
   const router = useRouter();
 
   useEffect(() => {
-    if (!hasSupabaseBrowserConfig()) return;
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === "visible") router.refresh();
+    }, NEWS_REFRESH_INTERVAL_MS);
+
+    if (!hasSupabaseBrowserConfig()) {
+      return () => window.clearInterval(intervalId);
+    }
 
     const supabase = createClient();
     let channel = supabase.channel("vigia-dashboard-live");
@@ -34,6 +42,7 @@ export function LiveRefresh() {
     channel.subscribe();
 
     return () => {
+      window.clearInterval(intervalId);
       void supabase.removeChannel(channel);
     };
   }, [router]);
