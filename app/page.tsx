@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BrandMark } from "@/components/brand-mark";
+import { AppHeader } from "@/components/app-header";
 import { DecisionCard } from "@/components/decision-card";
 import { EventSelector } from "@/components/event-selector";
 import { FamilyStatus } from "@/components/family-status";
@@ -21,44 +21,27 @@ export default async function Home() {
   const { event, resources, hazardZones, roadClosures } = dashboard;
 
   return (
-    <main className="app-shell">
+    <main className="app-shell" id="inicio">
       <LiveRefresh />
+      <AppHeader dataMode={dashboard.source === "supabase" ? "connected" : "local"} />
 
-      <header className="topbar">
-        <BrandMark />
-        <div className="topbar-center">
-          <span className="live-pulse" />
-          <span>
-            Monterrey · {dashboard.source === "supabase" ? "datos conectados" : "modo local"}
-          </span>
-        </div>
-        <nav className="topbar-actions" aria-label="Acciones principales">
-          <Link className="topbar-button" href="/reportar">Reportar</Link>
-          <Link className="topbar-button" href="/familia">Mi familia</Link>
-          <Link className="profile-button profile-link" href="/login" aria-label="Iniciar sesión">
-            EH
-          </Link>
-        </nav>
-      </header>
-
-      <div
-        className={event.isSimulation ? "emergency-banner simulation-banner" : "emergency-banner"}
+      <section
+        className={event.isSimulation ? "mode-banner mode-banner-simulation" : "mode-banner mode-banner-live"}
         role="status"
       >
-        <span className="banner-icon" aria-hidden="true">
-          {event.isSimulation ? "S" : "!"}
-        </span>
-        <p>
-          <strong>{event.isSimulation ? "Simulación activa:" : "Alerta activa:"}</strong>{" "}
-          {event.title}
-        </p>
-        <span>
-          {event.source} · actualización {event.updatedAt}
-        </span>
-      </div>
+        <div>
+          <strong>{event.isSimulation ? "MODO DEMOSTRACIÓN" : "ALERTA ACTIVA"}</strong>
+          <span>
+            {event.isSimulation
+              ? "Las alertas y recursos principales son simulados. Los avisos de Protección Civil sí provienen de fuentes reales."
+              : event.title}
+          </span>
+        </div>
+        <small>{event.source} · actualizado {event.updatedAt}</small>
+      </section>
 
-      <div className="dashboard">
-        <section className="hero-grid">
+      <div className="dashboard dashboard-redesign">
+        <section className="hero-grid" aria-label="Decisión y mapa operativo">
           <DecisionCard event={event} />
           <div id="mapa-operativo">
             <RiskMap
@@ -69,37 +52,32 @@ export default async function Home() {
           </div>
         </section>
 
-        <EventSelector />
+        <LocalNewsFeed feed={localNews} compact />
 
-        <LocalNewsFeed feed={localNews} />
-
-        <section className="operations-grid">
+        <section className="operations-grid" aria-label="Recursos y plan familiar">
           <ResourceList resources={resources} />
           <FamilyStatus members={familyStatuses} />
         </section>
 
+        <EventSelector activeHazard={event.type} isSimulation={event.isSimulation} />
+
         <section className="preparedness-strip">
           <div>
             <span className="eyebrow">Resiliencia técnica</span>
-            <h2>La aplicación puede degradarse sin inventar datos</h2>
+            <h2>Información útil incluso cuando los servicios fallan</h2>
             <p>
-              El mapa y las alertas usan Supabase cuando está disponible; el fallback local siempre aparece como simulación no verificada.
+              VIGÍA distingue los datos conectados, los reportes verificados y los escenarios de demostración para no fabricar certezas.
             </p>
           </div>
           <div className="offline-metrics">
-            <span>
-              <strong>{resources.length}</strong> recursos
-            </span>
-            <span>
-              <strong>{hazardZones.length}</strong> zonas
-            </span>
-            <span>
-              <strong>{roadClosures.length}</strong> cierres
-            </span>
+            <span><strong>{resources.length}</strong>recursos</span>
+            <span><strong>{hazardZones.length}</strong>zonas de riesgo</span>
+            <span><strong>{roadClosures.length}</strong>cierres</span>
           </div>
-          <Link className="secondary-button link-button" href="/familia">
-            Configurar familia
-          </Link>
+          <div className="preparedness-actions">
+            <Link className="secondary-button" href="/avisos">Ver avisos</Link>
+            <Link className="secondary-button" href="/familia">Configurar familia</Link>
+          </div>
         </section>
       </div>
 
