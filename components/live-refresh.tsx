@@ -12,6 +12,7 @@ const LIVE_TABLES = [
   "hazard_zones",
   "resources",
   "road_closures",
+  "official_social_posts",
 ] as const;
 
 const NEWS_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
