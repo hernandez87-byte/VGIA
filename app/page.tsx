@@ -8,6 +8,8 @@ import { RiskMap } from "@/components/risk-map";
 import { getLiveSnapshot } from "@/lib/data-sources/live-snapshot";
 import { activeEvent, familyStatuses, resources } from "@/lib/mock-data";
 
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
   const liveSnapshot = await getLiveSnapshot();
   const onlineSources = liveSnapshot.sources.filter(
