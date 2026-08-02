@@ -1,68 +1,56 @@
-import type { EmergencyEvent, FamilyMemberStatus, ResourcePoint } from "@/lib/domain/emergency";
+import type {
+  EmergencyEvent,
+  FamilyMemberStatus,
+  HazardZone,
+  ResourcePoint,
+  RoadClosure,
+} from "@/lib/domain/emergency";
 
 export const activeEvent: EmergencyEvent = {
   id: "event-demo-flood-001",
   type: "flood",
-  title: "Inundación repentina en zona poniente",
+  title: "Modo local: escenario de inundación",
   summary:
-    "El arroyo presenta crecimiento acelerado. Dos pasos deprimidos ya fueron cerrados.",
-  riskLevel: "critical",
-  confidence: "official",
-  action: "evacuate",
-  updatedAt: "12:14",
-  source: "Demostración de Protección Civil",
+    "Supabase no está disponible. Se muestran datos locales exclusivamente para validar la interfaz.",
+  severity: 72,
+  riskLevel: "high",
+  confidence: "unverified",
+  action: "prepare",
+  updatedAt: "sin conexión",
+  updatedAtIso: new Date(0).toISOString(),
+  source: "Fallback local de VIGÍA",
+  isSimulation: true,
+  instructions: [
+    "No uses esta demostración para tomar decisiones reales.",
+    "Consulta indicaciones oficiales de Protección Civil.",
+  ],
 };
 
 export const resources: ResourcePoint[] = [
   {
-    id: "resource-1",
-    name: "Secundaria 18",
+    id: "resource-local-1",
+    name: "Recurso local de demostración",
     category: "shelter",
-    status: "available",
-    distanceKm: 1.7,
-    updatedMinutesAgo: 4,
-    details: "86 espacios, agua, baños y atención básica.",
-  },
-  {
-    id: "resource-2",
-    name: "Centro de salud Mitras",
-    category: "medical",
-    status: "limited",
-    distanceKm: 2.3,
-    updatedMinutesAgo: 9,
-    details: "Urgencias operando; acceso únicamente por avenida norte.",
-  },
-  {
-    id: "resource-3",
-    name: "Purificadora Norte",
-    category: "water",
-    status: "available",
-    distanceKm: 2.8,
-    updatedMinutesAgo: 7,
-    details: "Agua potable confirmada; máximo dos garrafones por familia.",
+    status: "unknown",
+    distanceKm: 0,
+    updatedMinutesAgo: 0,
+    details: "Sin conexión con la base de datos. Disponibilidad no confirmada.",
+    latitude: 25.6866,
+    longitude: -100.3161,
+    isSimulation: true,
+    metadata: {},
   },
 ];
+
+export const hazardZones: HazardZone[] = [];
+export const roadClosures: RoadClosure[] = [];
 
 export const familyStatuses: FamilyMemberStatus[] = [
   {
     id: "family-1",
-    name: "Eusebio",
-    status: "moving",
-    locationLabel: "Ruta al refugio",
-    updatedMinutesAgo: 1,
-  },
-  {
-    id: "family-2",
-    name: "Alex",
-    status: "safe",
-    locationLabel: "Escuela confirmada",
-    updatedMinutesAgo: 3,
-  },
-  {
-    id: "family-3",
-    name: "Emilio",
+    name: "Usuario",
     status: "unknown",
-    locationLabel: "Sin confirmación",
-    updatedMinutesAgo: 18,
+    locationLabel: "Inicia sesión para configurar tu grupo",
+    updatedMinutesAgo: 0,
   },
 ];
