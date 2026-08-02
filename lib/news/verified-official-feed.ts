@@ -8,7 +8,7 @@ import {
 const SOURCE = {
   id: "pcnl-operational",
   name: "Protección Civil Nuevo León",
-  siteUrl: "https://www.nl.gob.mx/es/taxonomy/term/649",
+  siteUrl: "https://www.nl.gob.mx/es/taxonomy/term/173",
   socialUrl: "https://www.facebook.com/proteccioncivilnuevoleon/",
 } as const;
 
