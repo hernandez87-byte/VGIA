@@ -1,25 +1,27 @@
 import Link from "next/link";
 import { AppHeader } from "@/components/app-header";
 import { DecisionCard } from "@/components/decision-card";
+import { EnvironmentalIntelligence } from "@/components/environmental-intelligence";
 import { EventSelector } from "@/components/event-selector";
 import { FamilyStatus } from "@/components/family-status";
 import { LiveRefresh } from "@/components/live-refresh";
 import { LocalNewsFeed } from "@/components/local-news-feed";
 import { MetropolitanStatus } from "@/components/metropolitan-status";
+import { OfficialLiveChannels } from "@/components/official-live-channels";
 import { ResourceList } from "@/components/resource-list";
 import { RiskMap } from "@/components/risk-map";
 import { SituationPanel } from "@/components/situation-panel";
 import { getCityStatus } from "@/lib/data/city-status";
 import { getDashboardData } from "@/lib/data/dashboard";
 import { familyStatuses } from "@/lib/mock-data";
-import { getMetropolitanOfficialFeed } from "@/lib/news/metropolitan-feed";
+import { getLatestMetropolitanFeed } from "@/lib/news/latest-metropolitan-feed";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const [dashboard, localNews, cityStatus] = await Promise.all([
     getDashboardData(),
-    getMetropolitanOfficialFeed(),
+    getLatestMetropolitanFeed(),
     getCityStatus(),
   ]);
   const { event, resources, hazardZones, roadClosures } = dashboard;
@@ -42,7 +44,7 @@ export default async function Home() {
             <strong>{event.isSimulation ? "MODO DEMOSTRACIÓN" : "ALERTA ACTIVA"}</strong>
             <span>
               {event.isSimulation
-                ? "Alertas y recursos simulados. Clima y avisos oficiales identificados como datos externos."
+                ? "Alertas y recursos simulados. Clima, atlas territorial y canales oficiales conservan su fuente."
                 : event.title}
             </span>
           </div>
@@ -50,8 +52,9 @@ export default async function Home() {
         <details className="mode-banner-details">
           <summary>Qué es real y qué es simulado</summary>
           <p>
-            El escenario principal, sus zonas y los recursos VIGÍA son demostrativos.
-            El clima, la calidad del aire y los boletines oficiales conservan su fuente y hora.
+            El escenario principal y los recursos VIGÍA son demostrativos. El clima, presión,
+            viento, fase lunar, atlas de inundación, sismicidad y publicaciones oficiales muestran
+            su fuente y vigencia.
           </p>
         </details>
         <small>{event.source} · actualizado {event.updatedAt}</small>
@@ -85,7 +88,10 @@ export default async function Home() {
           />
         </section>
 
+        <EnvironmentalIntelligence status={cityStatus} />
+
         <LocalNewsFeed feed={localNews} compact />
+        <OfficialLiveChannels />
 
         <section className="operations-grid" aria-label="Recursos y plan familiar">
           <ResourceList resources={resources} />
@@ -106,7 +112,7 @@ export default async function Home() {
             <span><strong>{resources.length}</strong>recursos</span>
             <span><strong>{hazardZones.length}</strong>zonas de riesgo</span>
             <span><strong>{roadClosures.length}</strong>cierres</span>
-            <span><strong>{incidentCount}</strong>avisos</span>
+            <span><strong>{incidentCount}</strong>avisos &lt;72 h</span>
           </div>
           <div className="preparedness-actions">
             <Link className="secondary-button" href="/avisos">Ver avisos</Link>
