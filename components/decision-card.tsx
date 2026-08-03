@@ -55,7 +55,11 @@ const riskLabel: Record<RiskLevel, string> = {
   critical: "Riesgo crítico",
 };
 
-export function DecisionCard({ event, resources, hazardZones }: DecisionCardProps) {
+function DecisionContent({
+  event,
+  resources,
+  hazardZones,
+}: DecisionCardProps) {
   const tone =
     event.riskLevel === "critical" || event.riskLevel === "high"
       ? "danger"
@@ -131,5 +135,30 @@ export function DecisionCard({ event, resources, hazardZones }: DecisionCardProp
         <strong>{event.isSimulation ? "Simulación" : event.confidence}</strong>
       </div>
     </article>
+  );
+}
+
+export function DecisionCard(props: DecisionCardProps) {
+  if (!props.event.isSimulation) return <DecisionContent {...props} />;
+
+  return (
+    <details className="simulation-decision-card">
+      <summary>
+        <div className="simulation-calm-state">
+          <span className="simulation-calm-icon" aria-hidden="true">✓</span>
+          <div>
+            <span className="eyebrow">Estado actual</span>
+            <strong>Sin alerta crítica real confirmada</strong>
+            <small>
+              El escenario de inundación está disponible como simulación educativa y permanece plegado para no confundirlo con una emergencia real.
+            </small>
+          </div>
+        </div>
+        <span className="simulation-toggle-label">Abrir simulación</span>
+      </summary>
+      <div className="simulation-decision-body">
+        <DecisionContent {...props} />
+      </div>
+    </details>
   );
 }
