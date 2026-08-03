@@ -1,13 +1,11 @@
 import Link from "next/link";
 import { AppHeader } from "@/components/app-header";
 import { DecisionCard } from "@/components/decision-card";
-import { EnvironmentalIntelligence } from "@/components/environmental-intelligence";
 import { EventSelector } from "@/components/event-selector";
 import { FamilyStatus } from "@/components/family-status";
 import { LiveRefresh } from "@/components/live-refresh";
 import { LocalNewsFeed } from "@/components/local-news-feed";
 import { MetropolitanStatus } from "@/components/metropolitan-status";
-import { OfficialLiveChannels } from "@/components/official-live-channels";
 import { PersonalLocationWeather } from "@/components/personal-location-weather";
 import { ResourceList } from "@/components/resource-list";
 import { RiskMap } from "@/components/risk-map";
@@ -42,10 +40,10 @@ export default async function Home() {
             {event.isSimulation ? "D" : "!"}
           </span>
           <div>
-            <strong>{event.isSimulation ? "MODO DEMOSTRACIÓN" : "ALERTA ACTIVA"}</strong>
+            <strong>{event.isSimulation ? "DEMOSTRACIÓN DISPONIBLE" : "ALERTA ACTIVA"}</strong>
             <span>
               {event.isSimulation
-                ? "Alertas y recursos simulados. Clima, atlas territorial y canales oficiales conservan su fuente."
+                ? "No hay una alerta real confirmada. El escenario educativo permanece plegado en el centro operativo."
                 : event.title}
             </span>
           </div>
@@ -72,7 +70,7 @@ export default async function Home() {
 
         <PersonalLocationWeather />
 
-        <section className="command-grid" aria-label="Centro operativo metropolitano">
+        <section className="command-grid command-grid-focused" aria-label="Centro operativo metropolitano">
           <DecisionCard event={event} resources={resources} hazardZones={hazardZones} />
           <div id="mapa-operativo">
             <RiskMap
@@ -91,14 +89,35 @@ export default async function Home() {
           />
         </section>
 
-        <EnvironmentalIntelligence status={cityStatus} />
-
-        <LocalNewsFeed feed={localNews} compact />
-        <OfficialLiveChannels />
-
         <section className="operations-grid" aria-label="Recursos y plan familiar">
           <ResourceList resources={resources} />
           <FamilyStatus members={familyStatuses} />
+        </section>
+
+        {incidentCount > 0 ? (
+          <LocalNewsFeed feed={localNews} compact />
+        ) : (
+          <section className="news-quiet-strip" aria-label="Estado de incidentes oficiales">
+            <span aria-hidden="true">✓</span>
+            <div>
+              <strong>Sin incidentes oficiales confirmados en las últimas 72 horas</strong>
+              <small>Última revisión {localNews.updatedAt}. Los canales en vivo siguen disponibles en Avisos.</small>
+            </div>
+            <Link href="/avisos">Abrir avisos</Link>
+          </section>
+        )}
+
+        <section className="home-secondary-links" aria-label="Información ampliada">
+          <Link href="/entorno" className="home-secondary-card home-secondary-environment">
+            <span>Entorno y territorio</span>
+            <strong>Clima, pronóstico, presión, luna, corrientes e historial sísmico</strong>
+            <small>Abrir centro ambiental →</small>
+          </Link>
+          <Link href="/avisos" className="home-secondary-card home-secondary-alerts">
+            <span>Última hora oficial</span>
+            <strong>Incidentes recientes y canales completos de Protección Civil</strong>
+            <small>Abrir avisos →</small>
+          </Link>
         </section>
 
         <EventSelector activeHazard={event.type} isSimulation={event.isSimulation} />
@@ -118,7 +137,7 @@ export default async function Home() {
             <span><strong>{incidentCount}</strong>avisos &lt;72 h</span>
           </div>
           <div className="preparedness-actions">
-            <Link className="secondary-button" href="/avisos">Ver avisos</Link>
+            <Link className="secondary-button" href="/entorno">Ver entorno</Link>
             <Link className="secondary-button" href="/familia">Configurar familia</Link>
           </div>
         </section>
@@ -126,7 +145,7 @@ export default async function Home() {
 
       <footer className="footer-note">
         {event.isSimulation
-          ? "Simulación demostrativa. No la uses para tomar decisiones reales de emergencia."
+          ? "La simulación permanece plegada. No la uses para tomar decisiones reales de emergencia."
           : "VIGÍA complementa, pero no sustituye, las instrucciones de las autoridades."}
       </footer>
     </main>
