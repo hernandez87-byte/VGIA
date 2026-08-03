@@ -24,9 +24,6 @@ export default async function Home() {
   ]);
   const { event, resources, hazardZones, roadClosures } = dashboard;
   const incidentCount = localNews.items.length;
-  const nearestResource = [...resources]
-    .filter((resource) => resource.status === "available" || resource.status === "limited")
-    .sort((left, right) => left.distanceKm - right.distanceKm)[0];
 
   return (
     <main className="app-shell" id="inicio">
@@ -37,14 +34,26 @@ export default async function Home() {
         className={event.isSimulation ? "mode-banner mode-banner-simulation" : "mode-banner mode-banner-live"}
         role="status"
       >
-        <div>
-          <strong>{event.isSimulation ? "MODO DEMOSTRACIÓN" : "ALERTA ACTIVA"}</strong>
-          <span>
-            {event.isSimulation
-              ? "Las alertas y recursos principales son simulados. El clima y los avisos oficiales provienen de fuentes externas identificadas."
-              : event.title}
+        <div className="mode-banner-main">
+          <span className="mode-banner-icon" aria-hidden="true">
+            {event.isSimulation ? "D" : "!"}
           </span>
+          <div>
+            <strong>{event.isSimulation ? "MODO DEMOSTRACIÓN" : "ALERTA ACTIVA"}</strong>
+            <span>
+              {event.isSimulation
+                ? "Alertas y recursos simulados. Clima y avisos oficiales identificados como datos externos."
+                : event.title}
+            </span>
+          </div>
         </div>
+        <details className="mode-banner-details">
+          <summary>Qué es real y qué es simulado</summary>
+          <p>
+            El escenario principal, sus zonas y los recursos VIGÍA son demostrativos.
+            El clima, la calidad del aire y los boletines oficiales conservan su fuente y hora.
+          </p>
+        </details>
         <small>{event.source} · actualizado {event.updatedAt}</small>
       </section>
 
@@ -58,7 +67,7 @@ export default async function Home() {
         />
 
         <section className="command-grid" aria-label="Centro operativo metropolitano">
-          <DecisionCard event={event} nearestResource={nearestResource} />
+          <DecisionCard event={event} resources={resources} hazardZones={hazardZones} />
           <div id="mapa-operativo">
             <RiskMap
               resources={resources}
@@ -72,6 +81,7 @@ export default async function Home() {
             roadClosureCount={roadClosures.length}
             resourceCount={resources.length}
             hazardZoneCount={hazardZones.length}
+            latestIncidents={localNews.items.slice(0, 2)}
           />
         </section>
 
