@@ -14,6 +14,7 @@ export interface LocationWeatherData {
   relativeHumidityPercent: number | null;
   dewPointC: number | null;
   precipitationMm: number | null;
+  rainMm: number | null;
   cloudCoverPercent: number | null;
   weatherLabel: string;
   surfacePressureHpa: number | null;
@@ -26,6 +27,7 @@ export interface LocationWeatherData {
   usAqi: number | null;
   airQualityLabel: string;
   pm25: number | null;
+  pm10: number | null;
   source: string;
 }
 
