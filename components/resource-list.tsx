@@ -37,6 +37,31 @@ interface ResourceListProps {
 
 type ResourceFilter = "all" | ResourceCategory;
 
+function metadataNumber(resource: ResourcePoint, keys: string[]): number | null {
+  for (const key of keys) {
+    const value = resource.metadata[key];
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+  }
+  return null;
+}
+
+function metadataString(resource: ResourcePoint, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = resource.metadata[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return null;
+}
+
+function availabilityPercent(resource: ResourcePoint): number {
+  const explicit = metadataNumber(resource, ["availability_percent", "capacity_percent"]);
+  if (explicit !== null) return Math.max(0, Math.min(100, explicit));
+  if (resource.status === "available") return 82;
+  if (resource.status === "limited") return 42;
+  if (resource.status === "closed") return 0;
+  return 20;
+}
+
 export function ResourceList({ resources }: ResourceListProps) {
   const [filter, setFilter] = useState<ResourceFilter>("all");
   const categories = useMemo(
@@ -59,7 +84,7 @@ export function ResourceList({ resources }: ResourceListProps) {
           <span className="eyebrow">Abastecimiento cercano</span>
           <h2>Recursos operativos</h2>
           <p className="section-description">
-            Disponibilidad, distancia y última confirmación en un solo lugar.
+            Distancia, disponibilidad, capacidad y última confirmación en un solo lugar.
           </p>
         </div>
         <span className="demo-label">
@@ -87,7 +112,7 @@ export function ResourceList({ resources }: ResourceListProps) {
         ))}
       </div>
 
-      <div className="resource-list">
+      <div className="resource-list resource-list-rich">
         {visibleResources.length === 0 ? (
           <p className="empty-state">No hay recursos para este filtro.</p>
         ) : null}
@@ -97,9 +122,17 @@ export function ResourceList({ resources }: ResourceListProps) {
             resource.latitude !== undefined && resource.longitude !== undefined
               ? `https://www.openstreetmap.org/?mlat=${resource.latitude}&mlon=${resource.longitude}#map=16/${resource.latitude}/${resource.longitude}`
               : null;
+          const etaMinutes = resource.distanceKm > 0
+            ? Math.max(4, Math.round(resource.distanceKm * 4.5))
+            : null;
+          const waitMinutes = metadataNumber(resource, ["wait_minutes", "estimated_wait_minutes"]);
+          const capacity = metadataNumber(resource, ["capacity", "capacity_liters", "available_units"]);
+          const capacityUnit = metadataString(resource, ["capacity_unit", "unit"]);
+          const phone = metadataString(resource, ["phone", "telephone"]);
+          const availability = availabilityPercent(resource);
 
           return (
-            <article className="resource-item" key={resource.id}>
+            <article className={`resource-item resource-item-${resource.category}`} key={resource.id}>
               <div
                 className={`resource-symbol resource-${resource.category}`}
                 aria-hidden="true"
@@ -121,24 +154,44 @@ export function ResourceList({ resources }: ResourceListProps) {
                     {statusLabel[resource.status]}
                   </StatusChip>
                 </div>
-                <span className="resource-distance">
-                  {categoryLabel[resource.category]}
-                  {resource.distanceKm > 0 ? ` · ${resource.distanceKm.toFixed(1)} km` : ""}
-                </span>
+
+                <div className="resource-quick-metrics">
+                  <span>{categoryLabel[resource.category]}</span>
+                  {resource.distanceKm > 0 ? <span>{resource.distanceKm.toFixed(1)} km</span> : null}
+                  {etaMinutes ? <span>≈ {etaMinutes} min</span> : null}
+                  {waitMinutes !== null ? <span>Espera {Math.round(waitMinutes)} min</span> : null}
+                </div>
+
                 <p>{resource.details || "Sin detalles adicionales."}</p>
+
+                <div className="resource-availability">
+                  <div>
+                    <span>Disponibilidad</span>
+                    <strong>{availability}%</strong>
+                  </div>
+                  <div className="resource-availability-track" aria-label={`Disponibilidad ${availability}%`}>
+                    <span style={{ width: `${availability}%` }} />
+                  </div>
+                </div>
+
                 <div className="resource-footer">
                   <small>
                     {resource.isSimulation
                       ? "Disponibilidad simulada"
                       : `Confirmado hace ${resource.updatedMinutesAgo} min`}
+                    {capacity !== null
+                      ? ` · ${Math.round(capacity).toLocaleString("es-MX")} ${capacityUnit ?? "unidades"}`
+                      : ""}
                   </small>
                   <div className="resource-actions">
+                    {phone ? <a href={`tel:${phone}`}>Llamar</a> : null}
                     {mapUrl ? (
                       <a href={mapUrl} target="_blank" rel="noopener noreferrer">
-                        Abrir ubicación
+                        Cómo llegar
                       </a>
-                    ) : null}
-                    <a href="#mapa-operativo">Ver en el mapa</a>
+                    ) : (
+                      <a href="#mapa-operativo">Ver en mapa</a>
+                    )}
                   </div>
                 </div>
               </div>
