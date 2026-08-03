@@ -43,7 +43,7 @@ export function MetropolitanStatus({
         </span>
       </div>
 
-      <div className="metro-metrics">
+      <div className="metro-metrics metro-metrics-expanded">
         <article className="metro-metric metro-weather">
           <span className="metro-icon" aria-hidden="true">{status.weatherIcon}</span>
           <div>
@@ -67,7 +67,25 @@ export function MetropolitanStatus({
           <div>
             <small>Viento</small>
             <strong>{metric(status.windKmh, " km/h")}</strong>
-            <span>Ráfagas {metric(status.windGustKmh, " km/h")}</span>
+            <span>{status.windDirectionLabel} · ráfagas {metric(status.windGustKmh, " km/h")}</span>
+          </div>
+        </article>
+
+        <article className="metro-metric metro-pressure">
+          <span className="metro-icon" aria-hidden="true">P</span>
+          <div>
+            <small>Presión</small>
+            <strong>{metric(status.seaLevelPressureHpa, " hPa")}</strong>
+            <span>Local {metric(status.surfacePressureHpa, " hPa")}</span>
+          </div>
+        </article>
+
+        <article className="metro-metric metro-moon">
+          <span className="metro-icon" aria-hidden="true">{status.moon.icon}</span>
+          <div>
+            <small>Luna</small>
+            <strong>{status.moon.illuminationPercent}%</strong>
+            <span>{status.moon.phase}</span>
           </div>
         </article>
 
@@ -83,9 +101,9 @@ export function MetropolitanStatus({
         <article className="metro-metric metro-operations">
           <span className="metro-icon" aria-hidden="true">!</span>
           <div>
-            <small>Operación</small>
+            <small>Última hora</small>
             <strong>{incidentCount}</strong>
-            <span>avisos recientes</span>
+            <span>avisos de máximo 72 h</span>
           </div>
         </article>
 
