@@ -76,7 +76,6 @@ export default async function Home() {
               resources={resources}
               hazardZones={hazardZones}
               roadClosures={roadClosures}
-              rainProbability={cityStatus.rainProbability}
             />
           </div>
           <SituationPanel
