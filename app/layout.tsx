@@ -12,6 +12,7 @@ import "./command-center.css";
 import "./command-center-details.css";
 import "./final-polish.css";
 import "./advanced-intelligence.css";
+import "./hydrology-context.css";
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
 
 export const metadata: Metadata = {
