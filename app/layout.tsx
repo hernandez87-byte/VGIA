@@ -8,6 +8,7 @@ import "./news.css";
 import "./news-official.css";
 import "./social-feeds.css";
 import "./redesign.css";
+import "./command-center.css";
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
 
 export const metadata: Metadata = {
