@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { AppHeader } from "@/components/app-header";
 import { LocalNewsFeed } from "@/components/local-news-feed";
-import { getVerifiedOfficialFeed } from "@/lib/news/verified-official-feed";
+import { getMetropolitanOfficialFeed } from "@/lib/news/metropolitan-feed";
 
 export const dynamic = "force-dynamic";
 
 export default async function AlertsPage() {
-  const feed = await getVerifiedOfficialFeed();
+  const feed = await getMetropolitanOfficialFeed();
 
   return (
     <main className="app-shell alerts-page">
