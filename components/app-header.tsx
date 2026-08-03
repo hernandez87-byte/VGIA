@@ -18,6 +18,7 @@ export function AppHeader({ dataMode = "connected" }: AppHeaderProps) {
           <Link href="/#mapa-operativo">Mapa</Link>
           <Link href="/avisos">Avisos</Link>
           <Link href="/#recursos">Recursos</Link>
+          <Link href="/entorno">Entorno</Link>
           <Link href="/familia">Familia</Link>
         </nav>
 
