@@ -2,15 +2,18 @@ import Link from "next/link";
 import type {
   EmergencyEvent,
   HazardType,
+  HazardZone,
   RecommendedAction,
   ResourcePoint,
   RiskLevel,
 } from "@/lib/domain/emergency";
+import { PersonalLocationSummary } from "@/components/personal-location-summary";
 import { StatusChip } from "@/components/status-chip";
 
 interface DecisionCardProps {
   event: EmergencyEvent;
-  nearestResource?: ResourcePoint;
+  resources: ResourcePoint[];
+  hazardZones: HazardZone[];
 }
 
 const actionTitle: Record<RecommendedAction, string> = {
@@ -52,16 +55,13 @@ const riskLabel: Record<RiskLevel, string> = {
   critical: "Riesgo crítico",
 };
 
-export function DecisionCard({ event, nearestResource }: DecisionCardProps) {
+export function DecisionCard({ event, resources, hazardZones }: DecisionCardProps) {
   const tone =
     event.riskLevel === "critical" || event.riskLevel === "high"
       ? "danger"
       : event.riskLevel === "moderate"
         ? "warning"
         : "success";
-  const distanceLabel = nearestResource && nearestResource.distanceKm > 0
-    ? `${nearestResource.distanceKm.toFixed(1)} km`
-    : "distancia pendiente";
 
   return (
     <article className={`decision-card decision-card-${tone}`}>
@@ -74,24 +74,11 @@ export function DecisionCard({ event, nearestResource }: DecisionCardProps) {
       <h1>{actionTitle[event.action]}</h1>
       <p className="decision-summary">{event.summary}</p>
 
-      <div className="decision-context">
-        <div>
-          <span>Tu situación</span>
-          <strong>
-            {event.isSimulation
-              ? "Ubicación usada para demostrar la evaluación de riesgo."
-              : "La recomendación usa tu zona y los incidentes vigentes."}
-          </strong>
-        </div>
-        <div>
-          <span>Opción cercana</span>
-          <strong>
-            {nearestResource
-              ? `${nearestResource.name} · ${distanceLabel}`
-              : "Todavía no hay un destino verificado"}
-          </strong>
-        </div>
-      </div>
+      <PersonalLocationSummary
+        hazardZones={hazardZones}
+        resources={resources}
+        isSimulation={event.isSimulation}
+      />
 
       <div className="decision-priority">
         <div>
@@ -106,14 +93,6 @@ export function DecisionCard({ event, nearestResource }: DecisionCardProps) {
 
       <div className="severity-track" aria-label={`Severidad ${event.severity} de 100`}>
         <span style={{ width: `${Math.max(0, Math.min(100, event.severity))}%` }} />
-      </div>
-
-      <div className="decision-steps" aria-label="Secuencia de decisión">
-        <span><i>1</i>Tu ubicación</span>
-        <b aria-hidden="true">→</b>
-        <span><i>2</i>Evitar riesgo</span>
-        <b aria-hidden="true">→</b>
-        <span><i>3</i>Destino verificado</span>
       </div>
 
       <div className="decision-actions">
