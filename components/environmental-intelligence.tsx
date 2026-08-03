@@ -8,7 +8,41 @@ function metric(value: number | null, suffix = ""): string {
   return value === null ? "—" : `${Math.round(value)}${suffix}`;
 }
 
+function hydrologyState(status: CityStatus): {
+  label: string;
+  tone: "low" | "watch" | "high";
+  description: string;
+} {
+  const rain = status.rainProbability ?? 0;
+  const current = status.precipitationMm ?? 0;
+
+  if (rain >= 70 || current >= 8) {
+    return {
+      label: "Escurrimiento alto",
+      tone: "high",
+      description:
+        "Activa Corrientes e Inundación frecuente en el mapa. Evita cauces, pasos bajos y cruces cubiertos por agua.",
+    };
+  }
+  if (rain >= 40 || current >= 2) {
+    return {
+      label: "Escurrimiento en vigilancia",
+      tone: "watch",
+      description:
+        "La red hidrográfica puede concentrar agua si aumenta la lluvia. Revisa corrientes y zonas TR2 antes de desplazarte.",
+    };
+  }
+  return {
+    label: "Escurrimiento bajo",
+    tone: "low",
+    description:
+      "No se observa lluvia suficiente para elevar el contexto pluvial, pero la capa de corrientes no mide caudal en tiempo real.",
+  };
+}
+
 export function EnvironmentalIntelligence({ status }: EnvironmentalIntelligenceProps) {
+  const hydrology = hydrologyState(status);
+
   return (
     <section className="environment-panel" aria-labelledby="environment-title">
       <div className="environment-heading">
@@ -20,6 +54,20 @@ export function EnvironmentalIntelligence({ status }: EnvironmentalIntelligenceP
           </p>
         </div>
         <span className="environment-live">Actualiza cada 5 min</span>
+      </div>
+
+      <div className={`hydrology-context hydrology-context-${hydrology.tone}`}>
+        <span className="hydrology-icon" aria-hidden="true">≋</span>
+        <div>
+          <span>Contexto pluvial actual</span>
+          <strong>{hydrology.label}</strong>
+          <p>{hydrology.description}</p>
+        </div>
+        <div className="hydrology-metrics">
+          <span><b>{metric(status.rainProbability, "%")}</b>probabilidad hoy</span>
+          <span><b>{metric(status.precipitationMm, " mm")}</b>precipitación actual</span>
+        </div>
+        <a href="#mapa-operativo">Abrir capas de agua</a>
       </div>
 
       <div className="environment-layout">
