@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import type { LocalNewsFeed, NewsMediaType } from "@/lib/news/local-news";
+import type { LocalNewsFeed, LocalNewsItem, NewsMediaType } from "@/lib/news/local-news";
 
 type NewsFilter = "all" | NewsMediaType;
 
@@ -44,7 +44,6 @@ function facebookPluginUrl(pageUrl: string): string {
     hide_cover: "false",
     show_facepile: "false",
   });
-
   return `https://www.facebook.com/plugins/page.php?${params.toString()}`;
 }
 
@@ -52,6 +51,29 @@ function mediaLabel(mediaType: NewsMediaType): string {
   if (mediaType === "tiktok") return "TikTok";
   if (mediaType === "facebook") return "Facebook";
   return "Aviso oficial";
+}
+
+function incidentState(item: LocalNewsItem): { label: string; tone: string } {
+  const title = item.title.toLocaleLowerCase("es-MX");
+  const ageHours = item.publishedAt
+    ? Math.max(0, (Date.now() - new Date(item.publishedAt).getTime()) / 3_600_000)
+    : null;
+
+  if (title.includes("alerta") || title.includes("prevent") || title.includes("temporada")) {
+    return { label: "Preventivo", tone: "preventive" };
+  }
+  if (ageHours !== null && ageHours <= 8) {
+    return { label: "Reciente", tone: "active" };
+  }
+  if (
+    title.includes("controlado") ||
+    title.includes("atendido") ||
+    title.includes("concluye") ||
+    (ageHours !== null && ageHours > 72)
+  ) {
+    return { label: "Finalizado", tone: "closed" };
+  }
+  return { label: "Informativo", tone: "info" };
 }
 
 export function LocalNewsFeed({ feed, compact = false }: LocalNewsFeedProps) {
@@ -110,48 +132,52 @@ export function LocalNewsFeed({ feed, compact = false }: LocalNewsFeedProps) {
 
       {visibleItems.length > 0 ? (
         <div className={compact ? "incident-preview-grid" : "news-grid"}>
-          {visibleItems.map((item) => (
-            <article className={compact ? "incident-preview-card" : "news-card"} key={item.id}>
-              <a
-                className={compact ? "incident-preview-media" : "news-card-media"}
-                href={item.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label={`Abrir publicación oficial: ${item.title}`}
-              >
-                {item.imageUrl ? (
-                  // Las portadas provienen de fuentes oficiales variables.
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={item.imageUrl} alt="" loading="lazy" referrerPolicy="no-referrer" />
-                ) : (
-                  <span className="news-card-placeholder" aria-hidden="true">
-                    {item.mediaType === "tiktok" ? "♪" : item.mediaType === "facebook" ? "f" : "!"}
+          {visibleItems.map((item) => {
+            const state = incidentState(item);
+            return (
+              <article className={compact ? "incident-preview-card" : "news-card"} key={item.id}>
+                <a
+                  className={compact ? "incident-preview-media" : "news-card-media"}
+                  href={item.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`Abrir publicación oficial: ${item.title}`}
+                >
+                  {item.imageUrl ? (
+                    // Las portadas provienen de fuentes oficiales variables.
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={item.imageUrl} alt="" loading="lazy" referrerPolicy="no-referrer" />
+                  ) : (
+                    <span className="news-card-placeholder" aria-hidden="true">
+                      {item.mediaType === "tiktok" ? "♪" : item.mediaType === "facebook" ? "f" : "!"}
+                    </span>
+                  )}
+                  <span className={`news-media-label news-media-${item.mediaType}`}>
+                    {mediaLabel(item.mediaType)}
                   </span>
-                )}
-                <span className={`news-media-label news-media-${item.mediaType}`}>
-                  {mediaLabel(item.mediaType)}
-                </span>
-              </a>
+                </a>
 
-              <div className={compact ? "incident-preview-body" : "news-card-body"}>
-                <div className="news-card-meta">
-                  <span>{item.category}</span>
-                  {item.publishedLabel ? <time>{item.publishedLabel}</time> : null}
+                <div className={compact ? "incident-preview-body" : "news-card-body"}>
+                  <div className="news-card-meta incident-meta-row">
+                    <span className={`incident-state incident-state-${state.tone}`}>{state.label}</span>
+                    <span>{item.category}</span>
+                    {item.publishedLabel ? <time>{item.publishedLabel}</time> : null}
+                  </div>
+                  <h3>
+                    <a href={item.url} target="_blank" rel="noopener noreferrer">
+                      {item.title}
+                    </a>
+                  </h3>
+                  <div className="incident-source-row">
+                    <span>{item.sourceName} · Zona metropolitana</span>
+                    <a href={item.url} target="_blank" rel="noopener noreferrer">
+                      Ver publicación
+                    </a>
+                  </div>
                 </div>
-                <h3>
-                  <a href={item.url} target="_blank" rel="noopener noreferrer">
-                    {item.title}
-                  </a>
-                </h3>
-                <div className="incident-source-row">
-                  <span>{item.sourceName}</span>
-                  <a href={item.url} target="_blank" rel="noopener noreferrer">
-                    Ver publicación
-                  </a>
-                </div>
-              </div>
-            </article>
-          ))}
+              </article>
+            );
+          })}
         </div>
       ) : (
         <div className={compact ? "news-empty-state news-empty-compact" : "news-empty-state"}>
@@ -167,9 +193,7 @@ export function LocalNewsFeed({ feed, compact = false }: LocalNewsFeedProps) {
         <>
           <details className="official-channel-details">
             <summary>Ver canales oficiales completos de Facebook</summary>
-            <p>
-              Los timelines provienen directamente de Meta y pueden solicitar inicio de sesión.
-            </p>
+            <p>Los timelines provienen directamente de Meta y pueden solicitar inicio de sesión.</p>
             <div className="official-social-grid" aria-label="Timelines oficiales de Facebook">
               {OFFICIAL_FACEBOOK_TIMELINES.map((timeline) => (
                 <article className="official-social-card" key={timeline.id}>
@@ -190,12 +214,8 @@ export function LocalNewsFeed({ feed, compact = false }: LocalNewsFeedProps) {
                     allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
                   />
                   <div className="official-social-links">
-                    <a href={timeline.pageUrl} target="_blank" rel="noopener noreferrer">
-                      Abrir Facebook
-                    </a>
-                    <a href={timeline.sourceUrl} target="_blank" rel="noopener noreferrer">
-                      Portal oficial
-                    </a>
+                    <a href={timeline.pageUrl} target="_blank" rel="noopener noreferrer">Abrir Facebook</a>
+                    <a href={timeline.sourceUrl} target="_blank" rel="noopener noreferrer">Portal oficial</a>
                   </div>
                 </article>
               ))}
