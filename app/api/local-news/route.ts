@@ -1,9 +1,9 @@
-import { getLocalNewsFeed } from "@/lib/news/local-news";
+import { getMetropolitanOfficialFeed } from "@/lib/news/metropolitan-feed";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const feed = await getLocalNewsFeed();
+  const feed = await getMetropolitanOfficialFeed();
 
   return Response.json(feed, {
     status: feed.mode === "unavailable" ? 503 : 200,
