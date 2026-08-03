@@ -5,20 +5,25 @@ import { EventSelector } from "@/components/event-selector";
 import { FamilyStatus } from "@/components/family-status";
 import { LiveRefresh } from "@/components/live-refresh";
 import { LocalNewsFeed } from "@/components/local-news-feed";
+import { MetropolitanStatus } from "@/components/metropolitan-status";
 import { ResourceList } from "@/components/resource-list";
 import { RiskMap } from "@/components/risk-map";
+import { SituationPanel } from "@/components/situation-panel";
+import { getCityStatus } from "@/lib/data/city-status";
 import { getDashboardData } from "@/lib/data/dashboard";
 import { familyStatuses } from "@/lib/mock-data";
-import { getVerifiedOfficialFeed } from "@/lib/news/verified-official-feed";
+import { getMetropolitanOfficialFeed } from "@/lib/news/metropolitan-feed";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const [dashboard, localNews] = await Promise.all([
+  const [dashboard, localNews, cityStatus] = await Promise.all([
     getDashboardData(),
-    getVerifiedOfficialFeed(),
+    getMetropolitanOfficialFeed(),
+    getCityStatus(),
   ]);
   const { event, resources, hazardZones, roadClosures } = dashboard;
+  const incidentCount = localNews.items.length;
 
   return (
     <main className="app-shell" id="inicio">
@@ -33,15 +38,23 @@ export default async function Home() {
           <strong>{event.isSimulation ? "MODO DEMOSTRACIÓN" : "ALERTA ACTIVA"}</strong>
           <span>
             {event.isSimulation
-              ? "Las alertas y recursos principales son simulados. Los avisos de Protección Civil sí provienen de fuentes reales."
+              ? "Las alertas y recursos principales son simulados. El clima y los avisos oficiales provienen de fuentes externas identificadas."
               : event.title}
           </span>
         </div>
         <small>{event.source} · actualizado {event.updatedAt}</small>
       </section>
 
-      <div className="dashboard dashboard-redesign">
-        <section className="hero-grid" aria-label="Decisión y mapa operativo">
+      <div className="dashboard dashboard-redesign command-dashboard">
+        <MetropolitanStatus
+          status={cityStatus}
+          incidentCount={incidentCount}
+          roadClosureCount={roadClosures.length}
+          resourceCount={resources.length}
+          hazardZoneCount={hazardZones.length}
+        />
+
+        <section className="command-grid" aria-label="Centro operativo metropolitano">
           <DecisionCard event={event} />
           <div id="mapa-operativo">
             <RiskMap
@@ -50,6 +63,13 @@ export default async function Home() {
               roadClosures={roadClosures}
             />
           </div>
+          <SituationPanel
+            status={cityStatus}
+            incidentCount={incidentCount}
+            roadClosureCount={roadClosures.length}
+            resourceCount={resources.length}
+            hazardZoneCount={hazardZones.length}
+          />
         </section>
 
         <LocalNewsFeed feed={localNews} compact />
@@ -66,13 +86,14 @@ export default async function Home() {
             <span className="eyebrow">Resiliencia técnica</span>
             <h2>Información útil incluso cuando los servicios fallan</h2>
             <p>
-              VIGÍA distingue los datos conectados, los reportes verificados y los escenarios de demostración para no fabricar certezas.
+              VIGÍA distingue datos conectados, reportes verificados y escenarios de demostración para no fabricar certezas.
             </p>
           </div>
           <div className="offline-metrics">
             <span><strong>{resources.length}</strong>recursos</span>
             <span><strong>{hazardZones.length}</strong>zonas de riesgo</span>
             <span><strong>{roadClosures.length}</strong>cierres</span>
+            <span><strong>{incidentCount}</strong>avisos</span>
           </div>
           <div className="preparedness-actions">
             <Link className="secondary-button" href="/avisos">Ver avisos</Link>
