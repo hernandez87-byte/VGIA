@@ -23,13 +23,54 @@ interface LayerVisibility {
   resources: boolean;
   hazards: boolean;
   closures: boolean;
+  waterways: boolean;
+  frequentFlood: boolean;
+  historicalFlood: boolean;
+  seismic: boolean;
 }
+
+type WeatherMode = "none" | "temperature" | "pressure" | "wind";
 
 interface Coordinates {
   latitude: number;
   longitude: number;
 }
 
+interface WeatherGridPoint {
+  id: string;
+  latitude: number;
+  longitude: number;
+  temperatureC: number | null;
+  surfacePressureHpa: number | null;
+  windKmh: number | null;
+  windDirectionDeg: number | null;
+}
+
+interface WeatherGridResponse {
+  points?: WeatherGridPoint[];
+  source?: string;
+}
+
+interface GeoFeature {
+  type: "Feature";
+  geometry: { type: string; coordinates: unknown } | null;
+  properties: Record<string, unknown>;
+}
+
+interface FeatureCollection {
+  type: "FeatureCollection";
+  features: GeoFeature[];
+}
+
+interface TerritorialResponse {
+  frequentFlood?: FeatureCollection;
+  historicalFlood?: FeatureCollection;
+  waterways?: FeatureCollection;
+  seismic?: FeatureCollection;
+  sources?: Record<string, string>;
+}
+
+const EMPTY_COLLECTION: FeatureCollection = { type: "FeatureCollection", features: [] };
 const DEFAULT_LATITUDE = Number(process.env.NEXT_PUBLIC_DEFAULT_LATITUDE ?? "25.6866");
 const DEFAULT_LONGITUDE = Number(process.env.NEXT_PUBLIC_DEFAULT_LONGITUDE ?? "-100.3161");
 const configuredMapStyle = process.env.NEXT_PUBLIC_MAP_STYLE_URL?.trim();
@@ -120,21 +161,97 @@ function popupContent(resource: ResourcePoint): HTMLElement {
   return wrapper;
 }
 
+function weatherCollection(points: WeatherGridPoint[]): FeatureCollection {
+  return {
+    type: "FeatureCollection",
+    features: points.map((point) => ({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [point.longitude, point.latitude] },
+      properties: {
+        temperatureC: point.temperatureC,
+        surfacePressureHpa: point.surfacePressureHpa,
+        windKmh: point.windKmh,
+        windDirectionDeg: point.windDirectionDeg,
+      },
+    })),
+  };
+}
+
+function extendFeatureBounds(bounds: LngLatBounds, collection: FeatureCollection): void {
+  collection.features.forEach((feature) => {
+    if (feature.geometry?.type !== "Point" || !Array.isArray(feature.geometry.coordinates)) return;
+    const [longitude, latitude] = feature.geometry.coordinates as number[];
+    if (Number.isFinite(longitude) && Number.isFinite(latitude)) bounds.extend([longitude, latitude]);
+  });
+}
+
 export function RiskMap({ resources, hazardZones, roadClosures }: RiskMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const [mapState, setMapState] = useState<"loading" | "ready" | "error">("loading");
+  const [externalState, setExternalState] = useState<"loading" | "ready" | "partial">("loading");
   const [locationState, setLocationState] = useState<"pending" | "ready" | "unavailable">("pending");
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
   const [retryKey, setRetryKey] = useState(0);
   const [selectedResource, setSelectedResource] = useState<ResourcePoint | null>(null);
-  const [layers, setLayers] = useState<LayerVisibility>({ resources: true, hazards: true, closures: true });
+  const [weatherMode, setWeatherMode] = useState<WeatherMode>("none");
+  const [weatherPoints, setWeatherPoints] = useState<WeatherGridPoint[]>([]);
+  const [territorial, setTerritorial] = useState<TerritorialResponse>({});
+  const [layers, setLayers] = useState<LayerVisibility>({
+    resources: true,
+    hazards: true,
+    closures: true,
+    waterways: false,
+    frequentFlood: false,
+    historicalFlood: false,
+    seismic: false,
+  });
+
+  const frequentFlood = territorial.frequentFlood ?? EMPTY_COLLECTION;
+  const historicalFlood = territorial.historicalFlood ?? EMPTY_COLLECTION;
+  const waterways = territorial.waterways ?? EMPTY_COLLECTION;
+  const seismic = territorial.seismic ?? EMPTY_COLLECTION;
+
+  useEffect(() => {
+    let cancelled = false;
+    setExternalState("loading");
+    Promise.allSettled([
+      fetch("/api/weather-grid", { cache: "no-store" }).then((response) => response.json() as Promise<WeatherGridResponse>),
+      fetch("/api/territorial-layers", { cache: "no-store" }).then((response) => response.json() as Promise<TerritorialResponse>),
+    ]).then(([weatherResult, territorialResult]) => {
+      if (cancelled) return;
+      const weather = weatherResult.status === "fulfilled" ? weatherResult.value : null;
+      const territory = territorialResult.status === "fulfilled" ? territorialResult.value : null;
+      setWeatherPoints(weather?.points ?? []);
+      setTerritorial(territory ?? {});
+      setExternalState(weather && territory ? "ready" : "partial");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const visibleCount = useMemo(
     () =>
       (layers.resources ? resources.length : 0) +
       (layers.hazards ? hazardZones.length : 0) +
-      (layers.closures ? roadClosures.length : 0),
-    [hazardZones.length, layers, resources.length, roadClosures.length],
+      (layers.closures ? roadClosures.length : 0) +
+      (layers.waterways ? waterways.features.length : 0) +
+      (layers.frequentFlood ? frequentFlood.features.length : 0) +
+      (layers.historicalFlood ? historicalFlood.features.length : 0) +
+      (layers.seismic ? seismic.features.length : 0) +
+      (weatherMode !== "none" ? weatherPoints.length : 0),
+    [
+      frequentFlood.features.length,
+      hazardZones.length,
+      historicalFlood.features.length,
+      layers,
+      resources.length,
+      roadClosures.length,
+      seismic.features.length,
+      waterways.features.length,
+      weatherMode,
+      weatherPoints.length,
+    ],
   );
 
   const selectedDistance = useMemo(() => {
@@ -143,9 +260,7 @@ export function RiskMap({ resources, hazardZones, roadClosures }: RiskMapProps) 
       !userLocation ||
       typeof selectedResource.latitude !== "number" ||
       typeof selectedResource.longitude !== "number"
-    ) {
-      return null;
-    }
+    ) return null;
     return haversineKm(userLocation, {
       latitude: selectedResource.latitude,
       longitude: selectedResource.longitude,
@@ -204,17 +319,7 @@ export function RiskMap({ resources, hazardZones, roadClosures }: RiskMapProps) 
           type: "fill",
           source: "vigia-hazard-zones",
           paint: {
-            "fill-color": [
-              "interpolate",
-              ["linear"],
-              ["get", "riskScore"],
-              0,
-              "#f4b942",
-              70,
-              "#ef6a4d",
-              100,
-              "#c92f3d",
-            ],
+            "fill-color": ["interpolate", ["linear"], ["get", "riskScore"], 0, "#f4b942", 70, "#ef6a4d", 100, "#c92f3d"],
             "fill-opacity": 0.38,
             "fill-outline-color": "#9c2731",
           },
@@ -242,6 +347,161 @@ export function RiskMap({ resources, hazardZones, roadClosures }: RiskMapProps) 
         });
       }
 
+      if (layers.waterways && waterways.features.length > 0) {
+        map.addSource("vigia-waterways", { type: "geojson", data: waterways as GeoJSONSourceSpecification["data"] });
+        map.addLayer({
+          id: "vigia-waterways-line",
+          type: "line",
+          source: "vigia-waterways",
+          paint: {
+            "line-color": ["match", ["get", "waterway"], "river", "#1277b8", "canal", "#2f9fd0", "#5bb9df"],
+            "line-width": ["match", ["get", "waterway"], "river", 4, "canal", 3, 2],
+            "line-opacity": 0.82,
+          },
+        });
+      }
+
+      if (layers.frequentFlood && frequentFlood.features.length > 0) {
+        map.addSource("vigia-frequent-flood", { type: "geojson", data: frequentFlood as GeoJSONSourceSpecification["data"] });
+        map.addLayer({
+          id: "vigia-frequent-flood-fill",
+          type: "fill",
+          source: "vigia-frequent-flood",
+          paint: {
+            "fill-color": "#176ec4",
+            "fill-opacity": 0.34,
+            "fill-outline-color": "#0c4f9a",
+          },
+        });
+      }
+
+      if (layers.historicalFlood && historicalFlood.features.length > 0) {
+        map.addSource("vigia-historical-flood", { type: "geojson", data: historicalFlood as GeoJSONSourceSpecification["data"] });
+        map.addLayer({
+          id: "vigia-historical-flood-circles",
+          type: "circle",
+          source: "vigia-historical-flood",
+          paint: {
+            "circle-radius": 7,
+            "circle-color": "#f0a51c",
+            "circle-stroke-color": "#ffffff",
+            "circle-stroke-width": 2,
+            "circle-opacity": 0.9,
+          },
+        });
+      }
+
+      if (layers.seismic && seismic.features.length > 0) {
+        map.addSource("vigia-seismic", { type: "geojson", data: seismic as GeoJSONSourceSpecification["data"] });
+        map.addLayer({
+          id: "vigia-seismic-heat",
+          type: "heatmap",
+          source: "vigia-seismic",
+          maxzoom: 10,
+          paint: {
+            "heatmap-weight": ["interpolate", ["linear"], ["coalesce", ["get", "mag"], 2.5], 2.5, 0.2, 5, 1],
+            "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 4, 0.7, 9, 1.8],
+            "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 4, 12, 9, 30],
+            "heatmap-opacity": 0.72,
+            "heatmap-color": [
+              "interpolate",
+              ["linear"],
+              ["heatmap-density"],
+              0,
+              "rgba(76,47,130,0)",
+              0.25,
+              "#6b4bb3",
+              0.5,
+              "#b55ad5",
+              0.75,
+              "#ef6a69",
+              1,
+              "#ffd45c",
+            ],
+          },
+        });
+      }
+
+      if (weatherMode !== "none" && weatherPoints.length > 0) {
+        const collection = weatherCollection(weatherPoints);
+        map.addSource("vigia-weather-grid", { type: "geojson", data: collection as GeoJSONSourceSpecification["data"] });
+
+        if (weatherMode === "temperature") {
+          map.addLayer({
+            id: "vigia-temperature-map",
+            type: "circle",
+            source: "vigia-weather-grid",
+            paint: {
+              "circle-radius": ["interpolate", ["linear"], ["zoom"], 8, 38, 13, 72],
+              "circle-blur": 0.68,
+              "circle-opacity": 0.58,
+              "circle-color": [
+                "interpolate",
+                ["linear"],
+                ["coalesce", ["get", "temperatureC"], 25],
+                10,
+                "#275aa8",
+                18,
+                "#3db7d6",
+                25,
+                "#65c66b",
+                30,
+                "#f0c641",
+                36,
+                "#ef6a3f",
+                42,
+                "#b72b38",
+              ],
+            },
+          });
+        }
+
+        if (weatherMode === "pressure") {
+          map.addLayer({
+            id: "vigia-pressure-map",
+            type: "circle",
+            source: "vigia-weather-grid",
+            paint: {
+              "circle-radius": ["interpolate", ["linear"], ["zoom"], 8, 25, 13, 48],
+              "circle-blur": 0.28,
+              "circle-opacity": 0.52,
+              "circle-color": [
+                "interpolate",
+                ["linear"],
+                ["coalesce", ["get", "surfacePressureHpa"], 900],
+                760,
+                "#5346a5",
+                820,
+                "#3d8bc3",
+                900,
+                "#2dbb9f",
+                980,
+                "#e3c248",
+                1030,
+                "#ef7042",
+              ],
+            },
+          });
+          weatherPoints.forEach((point, index) => {
+            if (point.surfacePressureHpa === null || index % 2 !== 0) return;
+            const element = document.createElement("div");
+            element.className = "pressure-map-marker";
+            element.innerHTML = `<strong>${Math.round(point.surfacePressureHpa)}</strong><span>hPa</span>`;
+            markers.push(new Marker({ element }).setLngLat([point.longitude, point.latitude]).addTo(map));
+          });
+        }
+
+        if (weatherMode === "wind") {
+          weatherPoints.forEach((point) => {
+            if (point.windKmh === null || point.windDirectionDeg === null) return;
+            const element = document.createElement("div");
+            element.className = "wind-map-marker";
+            element.innerHTML = `<i style="transform:rotate(${point.windDirectionDeg}deg)">↑</i><strong>${Math.round(point.windKmh)}</strong><span>km/h</span>`;
+            markers.push(new Marker({ element }).setLngLat([point.longitude, point.latitude]).addTo(map));
+          });
+        }
+      }
+
       if (layers.resources) {
         resources.forEach((resource) => {
           if (typeof resource.latitude !== "number" || typeof resource.longitude !== "number") return;
@@ -260,15 +520,22 @@ export function RiskMap({ resources, hazardZones, roadClosures }: RiskMapProps) 
         });
       }
 
-      if (!bounds.isEmpty()) map.fitBounds(bounds, { padding: 72, maxZoom: 13, duration: 0 });
+      if (layers.seismic) {
+        extendFeatureBounds(bounds, seismic);
+      }
+
+      if (!bounds.isEmpty()) {
+        map.fitBounds(bounds, {
+          padding: 72,
+          maxZoom: layers.seismic ? 8 : 13,
+          duration: 0,
+        });
+      }
 
       if ("geolocation" in navigator) {
         navigator.geolocation.getCurrentPosition(
           (position) => {
-            const coordinates = {
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude,
-            };
+            const coordinates = { latitude: position.coords.latitude, longitude: position.coords.longitude };
             setUserLocation(coordinates);
             setLocationState("ready");
             const element = document.createElement("div");
@@ -299,34 +566,79 @@ export function RiskMap({ resources, hazardZones, roadClosures }: RiskMapProps) 
       markers.forEach((marker) => marker.remove());
       map.remove();
     };
-  }, [hazardZones, layers, resources, retryKey, roadClosures]);
+  }, [
+    frequentFlood,
+    hazardZones,
+    historicalFlood,
+    layers,
+    resources,
+    retryKey,
+    roadClosures,
+    seismic,
+    waterways,
+    weatherMode,
+    weatherPoints,
+  ]);
 
   function toggleLayer(layer: keyof LayerVisibility) {
     setLayers((current) => ({ ...current, [layer]: !current[layer] }));
   }
 
+  function weatherButton(mode: WeatherMode, label: string, icon: string) {
+    return (
+      <button
+        type="button"
+        aria-pressed={weatherMode === mode}
+        className={weatherMode === mode ? "map-layer map-layer-weather is-active" : "map-layer map-layer-weather"}
+        onClick={() => setWeatherMode(weatherMode === mode ? "none" : mode)}
+        disabled={externalState === "loading" || weatherPoints.length === 0}
+      >
+        <i>{icon}</i>{label}
+      </button>
+    );
+  }
+
   return (
-    <section className="map-card command-map" aria-label="Mapa operativo de VIGÍA">
+    <section className="map-card command-map advanced-map" aria-label="Mapa operativo de VIGÍA">
       <div className="map-toolbar">
         <div>
-          <span className="eyebrow">Mapa operativo</span>
-          <strong>{resources.length} recursos · {roadClosures.length} cierres · {hazardZones.length} zonas de riesgo</strong>
+          <span className="eyebrow">Mapa operativo multicapas</span>
+          <strong>{visibleCount} elementos visibles · clima, riesgo y territorio</strong>
         </div>
         <span className={`map-state map-state-${mapState}`}>
-          {mapState === "ready" ? `${visibleCount} elementos visibles` : mapState === "error" ? "Mapa no disponible" : "Cargando"}
+          {mapState === "ready" ? "En vivo" : mapState === "error" ? "Mapa no disponible" : "Cargando"}
         </span>
       </div>
 
-      <div className="map-layer-bar" role="group" aria-label="Capas del mapa">
-        <button type="button" aria-pressed={layers.resources} className={layers.resources ? "map-layer is-active" : "map-layer"} onClick={() => toggleLayer("resources")}>
-          <i className="legend-resource" /> Recursos
-        </button>
-        <button type="button" aria-pressed={layers.hazards} className={layers.hazards ? "map-layer is-active" : "map-layer"} onClick={() => toggleLayer("hazards")}>
-          <i className="legend-hazard" /> Riesgo
-        </button>
-        <button type="button" aria-pressed={layers.closures} className={layers.closures ? "map-layer is-active" : "map-layer"} onClick={() => toggleLayer("closures")}>
-          <i className="legend-closure" /> Cierres
-        </button>
+      <div className="map-control-groups">
+        <div className="map-control-group">
+          <span>Operación</span>
+          <div>
+            <button type="button" aria-pressed={layers.resources} className={layers.resources ? "map-layer is-active" : "map-layer"} onClick={() => toggleLayer("resources")}><i className="legend-resource" />Recursos</button>
+            <button type="button" aria-pressed={layers.hazards} className={layers.hazards ? "map-layer is-active" : "map-layer"} onClick={() => toggleLayer("hazards")}><i className="legend-hazard" />Riesgo actual</button>
+            <button type="button" aria-pressed={layers.closures} className={layers.closures ? "map-layer is-active" : "map-layer"} onClick={() => toggleLayer("closures")}><i className="legend-closure" />Cierres</button>
+          </div>
+        </div>
+
+        <div className="map-control-group">
+          <span>Atmósfera</span>
+          <div>
+            {weatherButton("temperature", "Temperatura", "°")}
+            {weatherButton("pressure", "Presión", "P")}
+            {weatherButton("wind", "Viento", "➤")}
+          </div>
+        </div>
+
+        <div className="map-control-group">
+          <span>Territorio</span>
+          <div>
+            <button type="button" aria-pressed={layers.waterways} className={layers.waterways ? "map-layer is-active" : "map-layer"} onClick={() => toggleLayer("waterways")} disabled={externalState === "loading" || waterways.features.length === 0}><i className="legend-waterway" />Corrientes</button>
+            <button type="button" aria-pressed={layers.frequentFlood} className={layers.frequentFlood ? "map-layer is-active" : "map-layer"} onClick={() => toggleLayer("frequentFlood")} disabled={externalState === "loading" || frequentFlood.features.length === 0}><i className="legend-frequent-flood" />Inundación frecuente</button>
+            <button type="button" aria-pressed={layers.historicalFlood} className={layers.historicalFlood ? "map-layer is-active" : "map-layer"} onClick={() => toggleLayer("historicalFlood")} disabled={externalState === "loading" || historicalFlood.features.length === 0}><i className="legend-history" />Historial</button>
+            <button type="button" aria-pressed={layers.seismic} className={layers.seismic ? "map-layer is-active" : "map-layer"} onClick={() => toggleLayer("seismic")} disabled={externalState === "loading" || seismic.features.length === 0}><i className="legend-seismic" />Sismicidad</button>
+          </div>
+        </div>
+
         <span className={`map-location-state map-location-${locationState}`}>
           <i /> {locationState === "ready" ? "Tu ubicación activa" : locationState === "pending" ? "Buscando ubicación" : "Ubicación no activada"}
         </span>
@@ -334,12 +646,17 @@ export function RiskMap({ resources, hazardZones, roadClosures }: RiskMapProps) 
 
       <div className="live-map-shell command-map-shell">
         <div ref={mapContainer} className="live-map command-live-map" />
-        <div className="map-floating-legend" aria-label="Leyenda del mapa">
-          <strong>Leyenda</strong>
+        <div className="map-floating-legend advanced-map-legend" aria-label="Leyenda del mapa">
+          <strong>Leyenda activa</strong>
           <span><i className="legend-user" /> Tu ubicación</span>
-          <span><i className="legend-resource" /> Recurso</span>
-          <span><i className="legend-hazard" /> Zona de riesgo</span>
-          <span><i className="legend-closure" /> Cierre vial</span>
+          {layers.resources ? <span><i className="legend-resource" /> Recurso</span> : null}
+          {layers.hazards ? <span><i className="legend-hazard" /> Riesgo actual</span> : null}
+          {layers.closures ? <span><i className="legend-closure" /> Cierre vial</span> : null}
+          {layers.waterways ? <span><i className="legend-waterway" /> Río, arroyo o canal</span> : null}
+          {layers.frequentFlood ? <span><i className="legend-frequent-flood" /> Inundación TR2</span> : null}
+          {layers.historicalFlood ? <span><i className="legend-history" /> Reporte histórico</span> : null}
+          {layers.seismic ? <span><i className="legend-seismic" /> Densidad sísmica</span> : null}
+          {weatherMode !== "none" ? <span><i className={`legend-${weatherMode}`} /> {weatherMode === "temperature" ? "Temperatura" : weatherMode === "pressure" ? "Presión local" : "Viento"}</span> : null}
         </div>
 
         {selectedResource ? (
@@ -350,18 +667,10 @@ export function RiskMap({ resources, hazardZones, roadClosures }: RiskMapProps) 
             <p>{selectedResource.details}</p>
             <div>
               <b>{statusLabel[selectedResource.status]}</b>
-              <small>
-                {selectedDistance !== null
-                  ? `${selectedDistance.toFixed(1)} km desde tu posición`
-                  : selectedResource.distanceKm > 0
-                    ? `${selectedResource.distanceKm.toFixed(1)} km de referencia`
-                    : "Distancia no calculada"}
-              </small>
+              <small>{selectedDistance !== null ? `${selectedDistance.toFixed(1)} km desde tu posición` : selectedResource.distanceKm > 0 ? `${selectedResource.distanceKm.toFixed(1)} km de referencia` : "Distancia no calculada"}</small>
             </div>
             {selectedResource.latitude !== undefined && selectedResource.longitude !== undefined ? (
-              <a href={`https://www.openstreetmap.org/?mlat=${selectedResource.latitude}&mlon=${selectedResource.longitude}#map=16/${selectedResource.latitude}/${selectedResource.longitude}`} target="_blank" rel="noopener noreferrer">
-                Usar como destino
-              </a>
+              <a href={`https://www.openstreetmap.org/?mlat=${selectedResource.latitude}&mlon=${selectedResource.longitude}#map=16/${selectedResource.latitude}/${selectedResource.longitude}`} target="_blank" rel="noopener noreferrer">Usar como destino</a>
             ) : null}
           </aside>
         ) : null}
@@ -375,12 +684,12 @@ export function RiskMap({ resources, hazardZones, roadClosures }: RiskMapProps) 
         ) : null}
       </div>
 
-      <div className="map-footer command-map-footer">
+      <div className="map-footer command-map-footer advanced-map-footer">
         <div>
-          <span className="route-step-index">!</span>
-          <p><strong>Selecciona un punto para revisar disponibilidad y distancia.</strong> La navegación automática permanece desactivada hasta contar con riesgo vial por segmento.</p>
+          <span className="route-step-index">i</span>
+          <p><strong>Las capas territoriales muestran contexto, no una orden de evacuación.</strong> Inundación frecuente corresponde a modelación TR2; la sismicidad es densidad histórica regional.</p>
         </div>
-        <span className="confidence">PostGIS + MapLibre</span>
+        <span className="confidence">Atlas MTY + Open-Meteo + USGS</span>
       </div>
     </section>
   );
