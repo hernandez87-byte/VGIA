@@ -62,9 +62,7 @@ function incidentState(item: LocalNewsItem): { label: string; tone: string } {
   if (title.includes("alerta") || title.includes("prevent") || title.includes("temporada")) {
     return { label: "Preventivo", tone: "preventive" };
   }
-  if (ageHours !== null && ageHours <= 8) {
-    return { label: "Reciente", tone: "active" };
-  }
+  if (ageHours !== null && ageHours <= 8) return { label: "Activo", tone: "active" };
   if (
     title.includes("controlado") ||
     title.includes("atendido") ||
@@ -74,6 +72,31 @@ function incidentState(item: LocalNewsItem): { label: string; tone: string } {
     return { label: "Finalizado", tone: "closed" };
   }
   return { label: "Informativo", tone: "info" };
+}
+
+function categoryVisual(category: string): { icon: string; slug: string; label: string } {
+  const normalized = category.toLocaleLowerCase("es-MX");
+  if (normalized.includes("inund")) return { icon: "≋", slug: "flood", label: "Agua y corrientes" };
+  if (normalized.includes("incend")) return { icon: "△", slug: "fire", label: "Fuego y humo" };
+  if (normalized.includes("clima")) return { icon: "◉", slug: "weather", label: "Clima severo" };
+  if (normalized.includes("movilidad")) return { icon: "↗", slug: "mobility", label: "Movilidad y cierres" };
+  if (normalized.includes("rescate")) return { icon: "+", slug: "rescue", label: "Atención y rescate" };
+  if (normalized.includes("quím")) return { icon: "⬡", slug: "chemical", label: "Sustancias peligrosas" };
+  if (normalized.includes("infra")) return { icon: "◆", slug: "infrastructure", label: "Infraestructura" };
+  return { icon: "!", slug: "civil", label: "Protección Civil" };
+}
+
+function IncidentPlaceholder({ item }: { item: LocalNewsItem }) {
+  const visual = categoryVisual(item.category);
+  return (
+    <span className={`incident-visual incident-visual-${visual.slug}`} aria-hidden="true">
+      <i>{visual.icon}</i>
+      <strong>{item.category}</strong>
+      <small>{visual.label}</small>
+      <b>Zona metropolitana</b>
+      <span className="incident-visual-grid" />
+    </span>
+  );
 }
 
 export function LocalNewsFeed({ feed, compact = false }: LocalNewsFeedProps) {
@@ -144,13 +167,10 @@ export function LocalNewsFeed({ feed, compact = false }: LocalNewsFeedProps) {
                   aria-label={`Abrir publicación oficial: ${item.title}`}
                 >
                   {item.imageUrl ? (
-                    // Las portadas provienen de fuentes oficiales variables.
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={item.imageUrl} alt="" loading="lazy" referrerPolicy="no-referrer" />
                   ) : (
-                    <span className="news-card-placeholder" aria-hidden="true">
-                      {item.mediaType === "tiktok" ? "♪" : item.mediaType === "facebook" ? "f" : "!"}
-                    </span>
+                    <IncidentPlaceholder item={item} />
                   )}
                   <span className={`news-media-label news-media-${item.mediaType}`}>
                     {mediaLabel(item.mediaType)}
