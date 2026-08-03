@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   GeolocateControl,
   LngLatBounds,
@@ -21,6 +21,12 @@ interface RiskMapProps {
   resources: ResourcePoint[];
   hazardZones: HazardZone[];
   roadClosures: RoadClosure[];
+}
+
+interface LayerVisibility {
+  resources: boolean;
+  hazards: boolean;
+  closures: boolean;
 }
 
 const DEFAULT_LATITUDE = Number(
@@ -51,9 +57,7 @@ const OPENSTREETMAP_STYLE: StyleSpecification = {
       source: "openstreetmap",
       minzoom: 0,
       maxzoom: 22,
-      paint: {
-        "raster-fade-duration": 0,
-      },
+      paint: { "raster-fade-duration": 0 },
     },
   ],
 };
@@ -65,7 +69,6 @@ function resolveMapStyle(): string | StyleSpecification {
   ) {
     return OPENSTREETMAP_STYLE;
   }
-
   return configuredMapStyle;
 }
 
@@ -79,35 +82,56 @@ const markerSymbol: Record<ResourcePoint["category"], string> = {
   communications: "⌁",
 };
 
+const categoryLabel: Record<ResourcePoint["category"], string> = {
+  shelter: "Refugio",
+  water: "Agua",
+  medical: "Salud",
+  food: "Alimentos",
+  energy: "Energía",
+  hardware: "Herramientas",
+  communications: "Comunicación",
+};
+
+const statusLabel: Record<ResourcePoint["status"], string> = {
+  available: "Disponible",
+  limited: "Limitado",
+  closed: "Cerrado",
+  unknown: "Sin confirmar",
+};
+
 function popupContent(resource: ResourcePoint): HTMLElement {
   const wrapper = document.createElement("div");
   wrapper.className = "map-popup";
-
   const title = document.createElement("strong");
   title.textContent = resource.name;
-
   const details = document.createElement("span");
   details.textContent = resource.details;
-
   const status = document.createElement("small");
   status.textContent = resource.isSimulation
     ? "Dato de demostración"
-    : `Estado: ${resource.status}`;
-
+    : `${statusLabel[resource.status]} · actualizado hace ${resource.updatedMinutesAgo} min`;
   wrapper.append(title, details, status);
   return wrapper;
 }
 
-export function RiskMap({
-  resources,
-  hazardZones,
-  roadClosures,
-}: RiskMapProps) {
+export function RiskMap({ resources, hazardZones, roadClosures }: RiskMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
-  const [mapState, setMapState] = useState<"loading" | "ready" | "error">(
-    "loading",
-  );
+  const [mapState, setMapState] = useState<"loading" | "ready" | "error">("loading");
   const [retryKey, setRetryKey] = useState(0);
+  const [selectedResource, setSelectedResource] = useState<ResourcePoint | null>(null);
+  const [layers, setLayers] = useState<LayerVisibility>({
+    resources: true,
+    hazards: true,
+    closures: true,
+  });
+
+  const visibleCount = useMemo(
+    () =>
+      (layers.resources ? resources.length : 0) +
+      (layers.hazards ? hazardZones.length : 0) +
+      (layers.closures ? roadClosures.length : 0),
+    [hazardZones.length, layers, resources.length, roadClosures.length],
+  );
 
   useEffect(() => {
     if (!mapContainer.current) return;
@@ -136,35 +160,27 @@ export function RiskMap({
     const markers: Marker[] = [];
     const loadTimeout = window.setTimeout(() => {
       if (!hasLoaded) setMapState("error");
-    }, 15000);
+    }, 15_000);
 
     map.once("load", () => {
       hasLoaded = true;
       window.clearTimeout(loadTimeout);
 
-      const zoneCollection = {
-        type: "FeatureCollection" as const,
-        features: hazardZones.map((zone) => ({
-          type: "Feature" as const,
-          properties: {
-            id: zone.id,
-            riskScore: zone.riskScore,
-            expectedDepthM: zone.expectedDepthM ?? null,
-          },
-          geometry: zone.geometry,
-        })),
-      };
+      const bounds = new LngLatBounds();
 
-      const closureCollection = {
-        type: "FeatureCollection" as const,
-        features: roadClosures.map((closure) => ({
-          type: "Feature" as const,
-          properties: { id: closure.id, reason: closure.reason },
-          geometry: closure.geometry,
-        })),
-      };
-
-      if (zoneCollection.features.length > 0) {
+      if (layers.hazards && hazardZones.length > 0) {
+        const zoneCollection = {
+          type: "FeatureCollection" as const,
+          features: hazardZones.map((zone) => ({
+            type: "Feature" as const,
+            properties: {
+              id: zone.id,
+              riskScore: zone.riskScore,
+              expectedDepthM: zone.expectedDepthM ?? null,
+            },
+            geometry: zone.geometry,
+          })),
+        };
         map.addSource("vigia-hazard-zones", {
           type: "geojson",
           data: zoneCollection as GeoJSONSourceSpecification["data"],
@@ -174,14 +190,32 @@ export function RiskMap({
           type: "fill",
           source: "vigia-hazard-zones",
           paint: {
-            "fill-color": "#e55353",
-            "fill-opacity": 0.32,
-            "fill-outline-color": "#a82f31",
+            "fill-color": [
+              "interpolate",
+              ["linear"],
+              ["get", "riskScore"],
+              0,
+              "#f4b942",
+              70,
+              "#ef6a4d",
+              100,
+              "#c92f3d",
+            ],
+            "fill-opacity": 0.38,
+            "fill-outline-color": "#9c2731",
           },
         });
       }
 
-      if (closureCollection.features.length > 0) {
+      if (layers.closures && roadClosures.length > 0) {
+        const closureCollection = {
+          type: "FeatureCollection" as const,
+          features: roadClosures.map((closure) => ({
+            type: "Feature" as const,
+            properties: { id: closure.id, reason: closure.reason },
+            geometry: closure.geometry,
+          })),
+        };
         map.addSource("vigia-road-closures", {
           type: "geojson",
           data: closureCollection as GeoJSONSourceSpecification["data"],
@@ -192,41 +226,40 @@ export function RiskMap({
           source: "vigia-road-closures",
           paint: {
             "line-color": "#e55353",
-            "line-width": 6,
-            "line-dasharray": [1, 1.5],
+            "line-width": 7,
+            "line-dasharray": [1, 1.25],
           },
         });
       }
 
-      const bounds = new LngLatBounds();
+      if (layers.resources) {
+        resources.forEach((resource) => {
+          if (
+            typeof resource.latitude !== "number" ||
+            typeof resource.longitude !== "number"
+          ) {
+            return;
+          }
 
-      resources.forEach((resource) => {
-        if (
-          typeof resource.latitude !== "number" ||
-          typeof resource.longitude !== "number"
-        ) {
-          return;
-        }
+          const element = document.createElement("button");
+          element.type = "button";
+          element.className = `live-resource-marker marker-${resource.category}`;
+          element.textContent = markerSymbol[resource.category];
+          element.setAttribute("aria-label", resource.name);
+          element.addEventListener("click", () => setSelectedResource(resource));
 
-        const element = document.createElement("button");
-        element.type = "button";
-        element.className = `live-resource-marker marker-${resource.category}`;
-        element.textContent = markerSymbol[resource.category];
-        element.setAttribute("aria-label", resource.name);
+          const marker = new Marker({ element })
+            .setLngLat([resource.longitude, resource.latitude])
+            .setPopup(new Popup({ offset: 18 }).setDOMContent(popupContent(resource)))
+            .addTo(map);
 
-        const marker = new Marker({ element })
-          .setLngLat([resource.longitude, resource.latitude])
-          .setPopup(
-            new Popup({ offset: 18 }).setDOMContent(popupContent(resource)),
-          )
-          .addTo(map);
-
-        markers.push(marker);
-        bounds.extend([resource.longitude, resource.latitude]);
-      });
+          markers.push(marker);
+          bounds.extend([resource.longitude, resource.latitude]);
+        });
+      }
 
       if (!bounds.isEmpty()) {
-        map.fitBounds(bounds, { padding: 70, maxZoom: 13, duration: 0 });
+        map.fitBounds(bounds, { padding: 72, maxZoom: 13, duration: 0 });
       }
 
       setMapState("ready");
@@ -242,35 +275,105 @@ export function RiskMap({
       markers.forEach((marker) => marker.remove());
       map.remove();
     };
-  }, [hazardZones, resources, retryKey, roadClosures]);
+  }, [hazardZones, layers, resources, retryKey, roadClosures]);
+
+  function toggleLayer(layer: keyof LayerVisibility) {
+    setLayers((current) => ({ ...current, [layer]: !current[layer] }));
+  }
 
   return (
-    <section className="map-card" aria-label="Mapa operativo de VIGÍA">
+    <section className="map-card command-map" aria-label="Mapa operativo de VIGÍA">
       <div className="map-toolbar">
         <div>
           <span className="eyebrow">Mapa operativo</span>
           <strong>
-            {resources.length} recursos · {roadClosures.length} cierres ·{" "}
-            {hazardZones.length} zonas de riesgo
+            {resources.length} recursos · {roadClosures.length} cierres · {hazardZones.length} zonas de riesgo
           </strong>
         </div>
         <span className={`map-state map-state-${mapState}`}>
           {mapState === "ready"
-            ? "En vivo"
+            ? `${visibleCount} elementos visibles`
             : mapState === "error"
               ? "Mapa no disponible"
               : "Cargando"}
         </span>
       </div>
 
-      <div className="live-map-shell">
-        <div ref={mapContainer} className="live-map" />
+      <div className="map-layer-bar" role="group" aria-label="Capas del mapa">
+        <button
+          type="button"
+          aria-pressed={layers.resources}
+          className={layers.resources ? "map-layer is-active" : "map-layer"}
+          onClick={() => toggleLayer("resources")}
+        >
+          <i className="legend-resource" /> Recursos
+        </button>
+        <button
+          type="button"
+          aria-pressed={layers.hazards}
+          className={layers.hazards ? "map-layer is-active" : "map-layer"}
+          onClick={() => toggleLayer("hazards")}
+        >
+          <i className="legend-hazard" /> Riesgo
+        </button>
+        <button
+          type="button"
+          aria-pressed={layers.closures}
+          className={layers.closures ? "map-layer is-active" : "map-layer"}
+          onClick={() => toggleLayer("closures")}
+        >
+          <i className="legend-closure" /> Cierres
+        </button>
+      </div>
+
+      <div className="live-map-shell command-map-shell">
+        <div ref={mapContainer} className="live-map command-live-map" />
+
+        <div className="map-floating-legend" aria-label="Leyenda del mapa">
+          <strong>Leyenda</strong>
+          <span><i className="legend-resource" /> Recurso</span>
+          <span><i className="legend-hazard" /> Zona de riesgo</span>
+          <span><i className="legend-closure" /> Cierre vial</span>
+        </div>
+
+        {selectedResource ? (
+          <aside className="map-selection-panel" aria-label="Recurso seleccionado">
+            <button
+              type="button"
+              className="map-selection-close"
+              onClick={() => setSelectedResource(null)}
+              aria-label="Cerrar detalle"
+            >
+              ×
+            </button>
+            <span>{categoryLabel[selectedResource.category]}</span>
+            <strong>{selectedResource.name}</strong>
+            <p>{selectedResource.details}</p>
+            <div>
+              <b>{statusLabel[selectedResource.status]}</b>
+              <small>
+                {selectedResource.distanceKm > 0
+                  ? `${selectedResource.distanceKm.toFixed(1)} km`
+                  : "Distancia no calculada"}
+              </small>
+            </div>
+            {selectedResource.latitude !== undefined && selectedResource.longitude !== undefined ? (
+              <a
+                href={`https://www.openstreetmap.org/?mlat=${selectedResource.latitude}&mlon=${selectedResource.longitude}#map=16/${selectedResource.latitude}/${selectedResource.longitude}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Abrir ubicación
+              </a>
+            ) : null}
+          </aside>
+        ) : null}
+
         {mapState === "error" ? (
           <div className="map-error-panel" role="alert">
             <strong>No se pudo cargar el mapa base</strong>
             <span>
-              Revisa la conexión a internet o vuelve a intentar. Los eventos y
-              recursos siguen disponibles en las tarjetas inferiores.
+              Revisa la conexión a internet o vuelve a intentar. Los eventos y recursos siguen disponibles en las tarjetas inferiores.
             </span>
             <button type="button" onClick={() => setRetryKey((value) => value + 1)}>
               Reintentar mapa
@@ -279,12 +382,11 @@ export function RiskMap({
         ) : null}
       </div>
 
-      <div className="map-footer">
+      <div className="map-footer command-map-footer">
         <div>
           <span className="route-step-index">!</span>
           <p>
-            <strong>Aún no hay navegación automática.</strong> El mapa muestra
-            recursos y amenazas verificadas; sigue las instrucciones oficiales.
+            <strong>Selecciona un punto para revisar disponibilidad.</strong> La navegación automática permanece desactivada hasta contar con riesgo vial por segmento.
           </p>
         </div>
         <span className="confidence">PostGIS + MapLibre</span>
