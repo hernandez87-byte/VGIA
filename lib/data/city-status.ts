@@ -1,9 +1,17 @@
+export interface HourlyRainPoint {
+  time: string;
+  label: string;
+  probability: number;
+}
+
 export interface CityStatus {
   observedAt: string;
+  nextUpdateLabel: string;
   temperatureC: number | null;
   apparentTemperatureC: number | null;
   precipitationMm: number | null;
   rainProbability: number | null;
+  hourlyRain: HourlyRainPoint[];
   windKmh: number | null;
   windGustKmh: number | null;
   weatherCode: number | null;
@@ -25,6 +33,10 @@ interface WeatherResponse {
     weather_code?: number;
     wind_speed_10m?: number;
     wind_gusts_10m?: number;
+  };
+  hourly?: {
+    time?: string[];
+    precipitation_probability?: number[];
   };
   daily?: {
     precipitation_probability_max?: number[];
@@ -76,6 +88,7 @@ async function fetchWeather(): Promise<WeatherResponse | null> {
     "current",
     "temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_gusts_10m",
   );
+  endpoint.searchParams.set("hourly", "precipitation_probability");
   endpoint.searchParams.set("daily", "precipitation_probability_max");
   endpoint.searchParams.set("timezone", "America/Monterrey");
   endpoint.searchParams.set("forecast_days", "2");
@@ -115,6 +128,22 @@ function numberOrNull(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
+function hourlyRainOutlook(weather: WeatherResponse | null): HourlyRainPoint[] {
+  const times = weather?.hourly?.time ?? [];
+  const probabilities = weather?.hourly?.precipitation_probability ?? [];
+  if (times.length === 0 || probabilities.length === 0) return [];
+
+  const currentTime = weather?.current?.time ?? new Date().toISOString().slice(0, 13) + ":00";
+  const startIndex = Math.max(0, times.findIndex((time) => time >= currentTime));
+  const resolvedStart = startIndex === -1 ? 0 : startIndex;
+
+  return times.slice(resolvedStart, resolvedStart + 6).map((time, index) => {
+    const probability = numberOrNull(probabilities[resolvedStart + index]) ?? 0;
+    const hour = time.slice(11, 16);
+    return { time, label: hour, probability: Math.round(probability) };
+  });
+}
+
 export async function getCityStatus(): Promise<CityStatus> {
   const [weather, air] = await Promise.all([fetchWeather(), fetchAirQuality()]);
   const currentWeather = weather?.current;
@@ -122,6 +151,8 @@ export async function getCityStatus(): Promise<CityStatus> {
   const weatherCode = numberOrNull(currentWeather?.weather_code);
   const weatherText = weatherDescription(weatherCode);
   const usAqi = numberOrNull(currentAir?.us_aqi);
+  const now = new Date();
+  const nextUpdate = new Date(now.getTime() + 5 * 60 * 1000);
 
   const source = weather && air ? "live" : weather || air ? "partial" : "unavailable";
 
@@ -133,11 +164,17 @@ export async function getCityStatus(): Promise<CityStatus> {
       month: "long",
       hour: "2-digit",
       minute: "2-digit",
-    }).format(new Date()),
+    }).format(now),
+    nextUpdateLabel: new Intl.DateTimeFormat("es-MX", {
+      timeZone: "America/Monterrey",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(nextUpdate),
     temperatureC: numberOrNull(currentWeather?.temperature_2m),
     apparentTemperatureC: numberOrNull(currentWeather?.apparent_temperature),
     precipitationMm: numberOrNull(currentWeather?.precipitation),
     rainProbability: numberOrNull(weather?.daily?.precipitation_probability_max?.[0]),
+    hourlyRain: hourlyRainOutlook(weather),
     windKmh: numberOrNull(currentWeather?.wind_speed_10m),
     windGustKmh: numberOrNull(currentWeather?.wind_gusts_10m),
     weatherCode,
