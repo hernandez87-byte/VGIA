@@ -24,6 +24,9 @@ export default async function Home() {
   ]);
   const { event, resources, hazardZones, roadClosures } = dashboard;
   const incidentCount = localNews.items.length;
+  const nearestResource = [...resources]
+    .filter((resource) => resource.status === "available" || resource.status === "limited")
+    .sort((left, right) => left.distanceKm - right.distanceKm)[0];
 
   return (
     <main className="app-shell" id="inicio">
@@ -55,7 +58,7 @@ export default async function Home() {
         />
 
         <section className="command-grid" aria-label="Centro operativo metropolitano">
-          <DecisionCard event={event} />
+          <DecisionCard event={event} nearestResource={nearestResource} />
           <div id="mapa-operativo">
             <RiskMap
               resources={resources}
