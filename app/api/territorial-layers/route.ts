@@ -28,6 +28,11 @@ const MONTERREY_ENVELOPE = "-100.55,25.45,-100.05,25.95";
 const FLOOD_SERVICE =
   "https://services9.arcgis.com/fp5f46XvVGKIUi0R/arcgis/rest/services/Capas_Monterrey_Inundaciones/FeatureServer";
 const FLOOD_RETURN_2_LAYERS = [104, 113, 123, 132];
+const OVERPASS_ENDPOINTS = [
+  "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass.private.coffee/api/interpreter",
+  "https://overpass-api.de/api/interpreter",
+] as const;
 
 function validCollection(value: unknown): GeoFeatureCollection {
   if (
@@ -45,7 +50,10 @@ async function fetchJson(url: URL | string, revalidate: number): Promise<unknown
   const response = await fetch(url, {
     next: { revalidate },
     signal: AbortSignal.timeout(18_000),
-    headers: { Accept: "application/json" },
+    headers: {
+      Accept: "application/json",
+      "User-Agent": "VIGIA-EmergencyMap/0.2 contact:github.com/hernandez87-byte/VGIA",
+    },
   });
   if (!response.ok) throw new Error(`Source returned ${response.status}`);
   return response.json();
@@ -121,37 +129,53 @@ async function fetchHistoricalFloodReports(): Promise<GeoFeatureCollection> {
   }
 }
 
+function waterwayCollection(elements: OverpassElement[]): GeoFeatureCollection {
+  const features: GeoFeature[] = elements.flatMap((element) => {
+    const coordinates = element.geometry?.map((point) => [point.lon, point.lat]);
+    if (!coordinates || coordinates.length < 2) return [];
+    return [{
+      type: "Feature" as const,
+      id: element.id,
+      geometry: { type: "LineString", coordinates },
+      properties: {
+        name: element.tags?.name ?? "Corriente sin nombre",
+        waterway: element.tags?.waterway ?? "stream",
+        intermittent: element.tags?.intermittent === "yes",
+        source: "OpenStreetMap",
+      },
+    }];
+  });
+  return { type: "FeatureCollection", features: features.slice(0, 900) };
+}
+
 async function fetchWaterways(): Promise<GeoFeatureCollection> {
-  const query = `[out:json][timeout:18];way["waterway"~"^(river|stream|canal|drain)$"](25.45,-100.55,25.95,-100.05);out geom;`;
-  try {
-    const response = await fetch("https://overpass-api.de/api/interpreter", {
-      method: "POST",
-      body: new URLSearchParams({ data: query }),
-      next: { revalidate: 86_400 },
-      signal: AbortSignal.timeout(20_000),
-      headers: { Accept: "application/json" },
-    });
-    if (!response.ok) return EMPTY_COLLECTION;
-    const payload = (await response.json()) as { elements?: OverpassElement[] };
-    const features: GeoFeature[] = (payload.elements ?? []).flatMap((element) => {
-      const coordinates = element.geometry?.map((point) => [point.lon, point.lat]);
-      if (!coordinates || coordinates.length < 2) return [];
-      return [{
-        type: "Feature" as const,
-        id: element.id,
-        geometry: { type: "LineString", coordinates },
-        properties: {
-          name: element.tags?.name ?? "Corriente sin nombre",
-          waterway: element.tags?.waterway ?? "stream",
-          intermittent: element.tags?.intermittent === "yes",
-          source: "OpenStreetMap",
+  const query = `[out:json][timeout:25];way["waterway"~"^(river|stream|canal|drain)$"](25.45,-100.55,25.95,-100.05);out geom;`;
+
+  for (const endpoint of OVERPASS_ENDPOINTS) {
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        body: new URLSearchParams({ data: query }),
+        cache: "no-store",
+        signal: AbortSignal.timeout(30_000),
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+          "User-Agent": "VIGIA-EmergencyMap/0.2 contact:github.com/hernandez87-byte/VGIA",
         },
-      }];
-    });
-    return { type: "FeatureCollection", features: features.slice(0, 900) };
-  } catch {
-    return EMPTY_COLLECTION;
+      });
+      if (!response.ok) continue;
+      const contentType = response.headers.get("content-type") ?? "";
+      if (!contentType.includes("json")) continue;
+      const payload = (await response.json()) as { elements?: OverpassElement[] };
+      const collection = waterwayCollection(payload.elements ?? []);
+      if (collection.features.length > 0) return collection;
+    } catch {
+      continue;
+    }
   }
+
+  return EMPTY_COLLECTION;
 }
 
 async function fetchSeismicHistory(): Promise<GeoFeatureCollection> {
@@ -191,7 +215,7 @@ export async function GET() {
       sources: {
         frequentFlood: "Atlas de Riesgos de Monterrey · periodo de retorno 2 años",
         historicalFlood: "Servicio geográfico de reportes de inundación",
-        waterways: "OpenStreetMap · red hidrográfica colaborativa",
+        waterways: "OpenStreetMap · red hidrográfica colaborativa; no mide caudal",
         seismic: "USGS Earthquake Catalog · actividad histórica regional",
       },
     },
