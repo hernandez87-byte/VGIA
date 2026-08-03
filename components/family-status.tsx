@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import type { FamilyMemberStatus } from "@/lib/domain/emergency";
 
 interface FamilyStatusProps {
@@ -23,6 +24,7 @@ export function FamilyStatus({ members }: FamilyStatusProps) {
   const unknownCount = members.filter((member) => member.status === "unknown").length;
   const total = isUnconfigured ? 3 : members.length;
   const progress = total > 0 ? Math.round((safeCount / total) * 100) : 0;
+  const ringStyle = { "--family-progress": `${progress * 3.6}deg` } as CSSProperties;
 
   return (
     <section className="panel-card family-panel family-panel-command" id="familia">
@@ -44,7 +46,7 @@ export function FamilyStatus({ members }: FamilyStatusProps) {
       <div className="family-readiness">
         <div
           className="family-progress-ring"
-          style={{ "--family-progress": `${progress * 3.6}deg` } as React.CSSProperties}
+          style={ringStyle}
           aria-label={`${safeCount} de ${total} personas a salvo`}
         >
           <span><strong>{safeCount}/{total}</strong>A salvo</span>
