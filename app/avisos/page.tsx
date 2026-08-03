@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { AppHeader } from "@/components/app-header";
 import { LocalNewsFeed } from "@/components/local-news-feed";
-import { getMetropolitanOfficialFeed } from "@/lib/news/metropolitan-feed";
+import { getLatestMetropolitanFeed } from "@/lib/news/latest-metropolitan-feed";
 
 export const dynamic = "force-dynamic";
 
 export default async function AlertsPage() {
-  const feed = await getMetropolitanOfficialFeed();
+  const feed = await getLatestMetropolitanFeed();
 
   return (
     <main className="app-shell alerts-page">
@@ -16,11 +16,10 @@ export default async function AlertsPage() {
         <div className="page-intro">
           <div>
             <span className="eyebrow">Información operativa verificada</span>
-            <h1>Avisos oficiales metropolitanos</h1>
+            <h1>Avisos oficiales de las últimas 72 horas</h1>
             <p>
-              Publicaciones recientes de Protección Civil y cuentas institucionales.
-              La página separa información pública de las alertas operativas que requieren
-              una acción inmediata.
+              Solo se muestran publicaciones con fecha verificable dentro de los últimos tres días.
+              Los canales oficiales de Facebook permanecen disponibles para consultar contenido en vivo.
             </p>
           </div>
           <Link className="secondary-button" href="/">
