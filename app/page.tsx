@@ -8,6 +8,7 @@ import { LiveRefresh } from "@/components/live-refresh";
 import { LocalNewsFeed } from "@/components/local-news-feed";
 import { MetropolitanStatus } from "@/components/metropolitan-status";
 import { OfficialLiveChannels } from "@/components/official-live-channels";
+import { PersonalLocationWeather } from "@/components/personal-location-weather";
 import { ResourceList } from "@/components/resource-list";
 import { RiskMap } from "@/components/risk-map";
 import { SituationPanel } from "@/components/situation-panel";
@@ -68,6 +69,8 @@ export default async function Home() {
           resourceCount={resources.length}
           hazardZoneCount={hazardZones.length}
         />
+
+        <PersonalLocationWeather />
 
         <section className="command-grid" aria-label="Centro operativo metropolitano">
           <DecisionCard event={event} resources={resources} hazardZones={hazardZones} />
