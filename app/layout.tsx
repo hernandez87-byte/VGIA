@@ -10,6 +10,7 @@ import "./social-feeds.css";
 import "./redesign.css";
 import "./command-center.css";
 import "./command-center-details.css";
+import "./final-polish.css";
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
 
 export const metadata: Metadata = {
